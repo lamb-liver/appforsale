@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 108dp adaptive foreground：滿版置入資產（與下方背景同色，遮罩裁切時接縫不外露） -->
+    <item>
+        <bitmap
+            android:gravity="fill"
+            android:src="@drawable/ic_launcher_pos_art" />
+    </item>
+</layer-list>

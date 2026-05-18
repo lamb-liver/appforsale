@@ -1,0 +1,68 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local configuration (SDK path, AdMob release IDs, signing)
+local.properties
+*.keystore
+*.jks
+keystore.properties
+signing.properties
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+!.idea/runConfigurations.xml
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+
+# Kotlin
+.kotlin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Log / crash
+*.log
+crashlytics-build.properties
+fabric.properties
+
+# NDK / native
+.externalNativeBuild/
+.cxx/
+
+# Captures (Android Studio device screenshots)
+captures/
+
+# Compose compiler reports (local diagnostics)
+**/compose_reports/
+
+# Cursor / local AI (optional — keep .cursorrules if you want team norms in repo)
+.cursor/
+
+# Env-style secrets (if you add scripts later)
+.env
+.env.*
+!.env.example
+!local.properties.example

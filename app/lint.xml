@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- main 原始碼不得引用 @VisibleForTesting（如 FakePosPersistence） -->
+    <issue id="VisibleForTests" severity="error" />
+</lint>

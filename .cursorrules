@@ -1,0 +1,18 @@
+這是一個為「實體市集攤販創作者」開發的 Android POS 系統。
+技術棧：Kotlin、Jetpack Compose、MVVM 架構、Jetpack DataStore。
+
+領域名詞：`CONTEXT.md`；架構決策：`docs/adr/`（結帳金額語意另見 `docs/phase-a-checkout-money-flow.md`）。
+
+開發最高指導原則為「減法設計（Subtraction in Design）」：  
+
+介面極簡：嚴格禁止增加多餘的導覽列、複雜的設定頁面或進銷存管理。UI 必須是 Stateless 的，狀態統一由 ViewModel 管理。
+
+狀態整合：底層資料已實作於 `data/PosStore.kt`（DataStore）；所有 UI 狀態必須以 Flow 或 StateFlow 綁定該層邏輯。原始碼分層：`domain/`（規則與契約）、`data/`（持久化與 I/O）、`ui/`（Compose／ViewModel）。  
+
+戶外高對比 UI：考量戶外強光，介面需採用高對比設計，請使用簡單的無襯線字體（Sans-serif），並確保關鍵按鈕具有極大的點擊熱區 。  
+
+單手操作：主要操作區域（如數字鍵盤與結帳按鈕）必須位於螢幕中下方的「拇指熱區」。
+
+ta是小攤販或同人展繪師，所以設計時要考慮到ta們的使用習慣，不要設計太複雜的介面。
+
+不要增加過多的技術細節，以簡潔好用為主
