@@ -2,10 +2,17 @@ package com.lambliver.appforsale.ui.pos
 
 import com.lambliver.appforsale.domain.*
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -22,13 +29,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lambliver.appforsale.ui.theme.BundleTilePalette
+import kotlinx.coroutines.withTimeoutOrNull
 import com.lambliver.appforsale.ui.theme.ProductTilePalette
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -49,6 +59,53 @@ private fun bundleTileColorForStableId(id: String): Color {
 }
 
 @Composable
+private fun Modifier.tilePressScaleAndGesture(
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    onPressStart: () -> Unit = {},
+): Modifier {
+    var pressed by remember { mutableStateOf(false) }
+    val currentOnTap = rememberUpdatedState(onTap)
+    val currentOnLongPress = rememberUpdatedState(onLongPress)
+    val currentOnPressStart = rememberUpdatedState(onPressStart)
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.93f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.4f,
+            stiffness = Spring.StiffnessHigh,
+        ),
+        label = "tilePressScale",
+    )
+    return scale(scale).pointerInput(Unit) {
+        while (true) {
+            awaitPointerEventScope {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                down.consume()
+            }
+            pressed = true
+            currentOnPressStart.value()
+
+            val upBeforeLongPress = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                awaitPointerEventScope {
+                    waitForUpOrCancellation()
+                }
+            }
+
+            if (upBeforeLongPress != null) {
+                pressed = false
+                currentOnTap.value()
+            } else {
+                currentOnLongPress.value()
+                awaitPointerEventScope {
+                    waitForUpOrCancellation()
+                }
+                pressed = false
+            }
+        }
+    }
+}
+
+@Composable
 internal fun ProductQuickRow(
     products:           ImmutableList<Product>,
     categories:         ImmutableList<Category>,
@@ -57,6 +114,7 @@ internal fun ProductQuickRow(
     onTap:              (Product) -> Unit,
     onLongPress:        (Product) -> Unit,
     onLongPressCategory:(Category) -> Unit,
+    onTilePressFeedback: () -> Unit = {},
     modifier:           Modifier = Modifier,
 ) {
     if (products.isEmpty()) {
@@ -141,6 +199,7 @@ internal fun ProductQuickRow(
                     currency    = currency,
                     onTap       = { onTap(product) },
                     onLongPress = { onLongPress(product) },
+                    onPressFeedback = onTilePressFeedback,
                 )
             }
         }
@@ -156,6 +215,7 @@ internal fun BundleQuickRow(
     onTap:                (Bundle) -> Unit,
     onLongPress:          (Bundle) -> Unit,
     onLongPressCategory:  (BundleCategory) -> Unit,
+    onTilePressFeedback:  () -> Unit = {},
     modifier:             Modifier = Modifier,
 ) {
     if (bundles.isEmpty()) {
@@ -239,21 +299,22 @@ internal fun BundleQuickRow(
                     currency    = currency,
                     onTap       = { onTap(bundle) },
                     onLongPress = { onLongPress(bundle) },
+                    onPressFeedback = onTilePressFeedback,
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BundleTile(
-    bundle:      Bundle,
-    qty:         Int,
-    color:       Color,
-    currency:    NumberFormat,
-    onTap:       () -> Unit,
-    onLongPress: () -> Unit,
+    bundle:          Bundle,
+    qty:             Int,
+    color:           Color,
+    currency:        NumberFormat,
+    onTap:           () -> Unit,
+    onLongPress:     () -> Unit,
+    onPressFeedback: () -> Unit = {},
 ) {
     Box(
         modifier = Modifier
@@ -261,9 +322,10 @@ private fun BundleTile(
             .aspectRatio(1.6f)
             .clip(RoundedCornerShape(16.dp))
             .background(color)
-            .combinedClickable(
-                onClick     = onTap,
-                onLongClick = onLongPress,
+            .tilePressScaleAndGesture(
+                onTap = onTap,
+                onLongPress = onLongPress,
+                onPressStart = onPressFeedback,
             ),
     ) {
         Column(
@@ -297,24 +359,7 @@ private fun BundleTile(
                 textAlign  = TextAlign.Center,
             )
         }
-        if (qty > 0) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text       = "$qty",
-                    color      = color,
-                    fontWeight = FontWeight.Black,
-                    fontSize   = 14.sp,
-                )
-            }
-        }
+        CartQtyBadge(qty = qty, accentColor = color)
     }
 }
 
@@ -350,15 +395,15 @@ internal fun CategoryTab(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ProductTile(
-    product:     Product,
-    qty:         Int,
-    color:       Color,
-    currency:    NumberFormat,
-    onTap:       () -> Unit,
-    onLongPress: () -> Unit,
+    product:         Product,
+    qty:             Int,
+    color:           Color,
+    currency:        NumberFormat,
+    onTap:           () -> Unit,
+    onLongPress:     () -> Unit,
+    onPressFeedback: () -> Unit = {},
 ) {
     Box(
         modifier = Modifier
@@ -366,9 +411,10 @@ private fun ProductTile(
             .aspectRatio(1.6f)
             .clip(RoundedCornerShape(16.dp))
             .background(color)
-            .combinedClickable(
-                onClick     = onTap,
-                onLongClick = onLongPress,
+            .tilePressScaleAndGesture(
+                onTap = onTap,
+                onLongPress = onLongPress,
+                onPressStart = onPressFeedback,
             ),
     ) {
         Column(
@@ -404,19 +450,33 @@ private fun ProductTile(
                 )
             }
         }
-        if (qty > 0) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center,
+        CartQtyBadge(qty = qty, accentColor = color)
+    }
+}
+
+@Composable
+private fun BoxScope.CartQtyBadge(qty: Int, accentColor: Color) {
+    if (qty <= 0) return
+    key(qty) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedVisibility(
+                visible = true,
+                enter = scaleIn(
+                    initialScale = 1.4f,
+                    animationSpec = spring(dampingRatio = 0.5f),
+                ),
             ) {
                 Text(
                     text       = "$qty",
-                    color      = color,
+                    color      = accentColor,
                     fontWeight = FontWeight.Black,
                     fontSize   = 14.sp,
                 )

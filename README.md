@@ -1,6 +1,6 @@
 # 小攤位 · 市集 POS
 
-**版本：v1.0.0**（`VERSION` · `versionName` · [Releases](https://github.com/lamb-liver/appforsale/releases/tag/v1.0.0)）
+**版本：v1.1.0**（`VERSION` · `versionName` · [Releases](https://github.com/lamb-liver/appforsale/releases/tag/v1.1.0)）
 
 **離線可用的 Android 結帳 app**：快選商品／套組、現場收款、紀錄今日營收；刻意不做進銷存或複雜後台。
 
@@ -13,8 +13,9 @@
 
 | 功能 | 說明 |
 |------|------|
-| 快選結帳 | 商品／套組、折扣、自訂金額、現金／行動支付、小費 |
+| 快選結帳 | 商品／套組、折扣、自訂金額、現金／行動支付、小費；主畫面橘色「結帳」按鈕顯示應收與件數 |
 | 庫存 | 可選追蹤庫存；套組與單品共用庫存規則 |
+| 操作回饋 | 震動 + 音效（加入購物車／結帳成功／錯誤）；設定選單可獨立開關；靜音／震動模式只震不響 |
 | 今日儀表 | 當日營收與筆數摘要 |
 | 復原 | 結帳成功後短時間內可復原上一筆 |
 | CSV 匯出 | 頂列檔案圖示 → SAF 選路徑存檔 → 成功後系統分享選單（Line、Drive、Email 等） |
@@ -40,9 +41,11 @@
 appforsale/
 ├── app/src/main/java/com/lambliver/appforsale/
 │   ├── domain/          # 協調器（目錄／購物車／結帳）、對帳、網域模型、UI 契約
-│   ├── data/            # PosPersistence、PosStore、JSON codec、CSV／備份 I/O
+│   ├── data/            # PosPersistence、PosStore、JSON codec、CSV／備份 I/O、AppUiPreferences
 │   └── ui/              # Activity、Compose、ViewModel、theme、billing／廣告
-│       └── pos/         # PosAppShell、主畫面、結帳／儀表 sheet、匯出 launcher
+│       ├── feedback/    # PosFeedbackManager（震動 + SoundPool 音效）
+│       ├── animation/   # 快選 tile 按壓縮放
+│       └── pos/         # PosAppShell、主畫面、PosCheckoutButton、結帳／儀表 sheet
 ├── app/src/test/        # 單元測試（Coordinator、JSON、結帳金額…）
 ├── docs/adr/            # 架構決策紀錄
 ├── CONTEXT.md           # 領域名詞（商品、購物車、結帳…）
@@ -57,9 +60,9 @@ appforsale/
 
 | 層 | 職責 |
 |----|------|
-| **ui** | `PosViewModel` 訂閱 `PosPersistence.snapshot`；購物車／目錄／結帳委派各 Coordinator；`PosAppShell` 處理 SAF 匯出與 `csvShareUriFlow` 分享；廣告／Billing 在 `ui/ads`、`ui/billing` |
-| **domain** | 純規則與協調結果（`CartResult`、`CatalogPersistPlan`、`CheckoutWriteRequest`） |
-| **data** | `PosPersistence` 介面 + `PosStore`（DataStore）；`applyCatalog` 原子寫入；`checkout` 為 internal extension |
+| **ui** | `PosViewModel` 訂閱 `PosPersistence.snapshot`；購物車／目錄／結帳委派各 Coordinator；`PosAppShell` 處理 SAF 匯出與 `csvShareUriFlow` 分享；`PosFeedbackManager` 統一震動／音效 side effect；廣告／Billing 在 `ui/ads`、`ui/billing` |
+| **domain** | 純規則與協調結果（`CartResult`、`CatalogPersistPlan`、`CheckoutWriteRequest`）；`PosUiState` 衍生欄位（`cartItemCount`、`checkoutSurfaceReceivablePreview`） |
+| **data** | `PosPersistence` 介面 + `PosStore`（DataStore）；`AppUiPreferences`（`haptic_enabled`／`sound_enabled`）；`applyCatalog` 原子寫入；`checkout` 為 internal extension |
 
 建議閱讀順序：**`README` → `CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCartCoordinator.kt` → `domain/PosCatalogCoordinator.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/PosStore.kt`**。
 
@@ -79,6 +82,8 @@ appforsale/
 | `PosUndoCoordinatorTest` | 上一筆結帳復原規則、庫存還原 fallback |
 | `BackupMigrationTest` | 備份 schema 1→2 遷移、冪等性、還原 |
 | `PosBackupPayloadTest` | 備份 envelope `parseBackupEnvelope`（純 JVM） |
+| `PosFeedbackManagerTest` | 音效播放條件（`shouldPlaySound`：NORMAL / VIBRATE / SILENT） |
+| `CheckoutBottomSheetComposeTest` | 結帳 sheet 互動（Robolectric Compose） |
 
 協調器與金額邏輯的單元測試可用 **`FakePosPersistence`** mock 持久化層，不需裝置。其餘 JSON／CSV 測試見 `PosCartJsonTest`、`SalesRecordsJsonTest`、`PosCsvExportTest` 等。
 
@@ -109,6 +114,19 @@ appforsale/
 2. `PosAppShell` 以 `ActivityResultContracts.CreateDocument("text/csv")` 讓使用者選儲存位置
 3. `PosEvent.ExportCsv` → `PosViewModel.exportCsv` → `PosCsvExportAdapter` 寫入 SAF URI
 4. 成功後 `csvShareUriFlow` 送出 URI；`PosAppShell` 以 `ACTION_SEND` + `FLAG_GRANT_READ_URI_PERMISSION` 開啟系統分享（不需 FileProvider）
+
+#### 操作回饋（震動 + 音效）
+
+| 觸發 | 回饋 | 說明 |
+|------|------|------|
+| 快選 tile 按下 | 短震 + click | `ProductTile` → `PosFeedbackManager.lightTap()` |
+| 結帳成功 | 2×pulse + chime | `checkoutSuccessFlow` → `checkoutSuccess()` |
+| 錯誤 Toast／現金不足 | 長震 + bump | `PosToastSeverity.Error` → `error()` |
+
+- **設定**：齒輪選單「震動回饋」「音效回饋」各自 Checkmark 切換（DataStore `AppUiPreferences`）。
+- **靜音策略**：僅 `RINGER_MODE_NORMAL` 播音；VIBRATE／SILENT 只保留震動（若震動開關開啟）。
+- **音效**：`SoundPool` + `res/raw/*.wav`，`USAGE_MEDIA` 固定音量；`PosApp` 以 `rememberPosFeedback()` 建立，`Activity` 銷毀時 `release()`。
+- **不觸發**：開結帳 sheet、收鍵盤、按「結帳」導航——只有資料變更或結果確認才回饋。
 
 ---
 

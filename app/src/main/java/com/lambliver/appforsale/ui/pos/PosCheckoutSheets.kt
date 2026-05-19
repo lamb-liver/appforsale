@@ -34,8 +34,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.lambliver.appforsale.ui.feedback.PosFeedbackManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -423,8 +422,8 @@ internal fun CheckoutBottomSheet(
     currency:   NumberFormat,
     onDismiss:  () -> Unit,
     onConfirm:  (PaymentMethod, tipAmount: Long) -> Unit,
+    feedback:    PosFeedbackManager,
 ) {
-    val haptic = LocalHapticFeedback.current
     var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
     var cashInput by remember { mutableStateOf("") }
     var tipAbsorbed by remember { mutableLongStateOf(0L) }
@@ -578,10 +577,7 @@ internal fun CheckoutBottomSheet(
                             when {
                                 change > 0L && tipAbsorbed == 0L ->
                                     FilledTonalButton(
-                                        onClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            tipAbsorbed = change
-                                        },
+                                        onClick = { tipAbsorbed = change },
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .heightIn(min = 56.dp),
@@ -651,11 +647,10 @@ internal fun CheckoutBottomSheet(
                 onClick = {
                     if (!canCheckout) {
                         if (paymentMethod == PaymentMethod.CASH && total > 0L && received > 0L && received < total) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            feedback.error()
                         }
                         return@Button
                     }
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     val tip = if (paymentMethod == PaymentMethod.CASH) tipAbsorbed else 0L
                     onConfirm(paymentMethod, tip)
                 },

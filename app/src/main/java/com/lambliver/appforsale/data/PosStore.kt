@@ -2,14 +2,11 @@ package com.lambliver.appforsale.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.*
-import androidx.datastore.preferences.preferencesDataStore
 import com.lambliver.appforsale.domain.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
-
-private val Context.dataStore by preferencesDataStore(name = "pos_store")
 
 /**
  * DataStore 協調：**偏好鍵讀寫**、**結帳／復原交易**。
@@ -33,7 +30,7 @@ class PosStore(private val context: Context) : PosPersistence {
     private val SALES_LOG_JSON = stringPreferencesKey("sales_log_json")
     private val LAST_CHECKOUT_JSON = stringPreferencesKey("last_checkout_json")
 
-    override val snapshot: Flow<PosPersistSnapshot> = context.dataStore.data.map { prefs ->
+    override val snapshot: Flow<PosPersistSnapshot> = context.posPreferencesDataStore.data.map { prefs ->
         PosPersistSnapshot(
             products = decodeProducts(prefs[PRODUCTS_JSON].orEmpty()),
             categories = decodeCategories(prefs[CATEGORIES_JSON].orEmpty()),
@@ -58,7 +55,7 @@ class PosStore(private val context: Context) : PosPersistence {
     override val lastCheckoutFlow: Flow<LastCheckout?> = snapshot.map { it.lastCheckout }
 
     override suspend fun applyCatalog(plan: CatalogPersistPlan) {
-        context.dataStore.edit { prefs ->
+        context.posPreferencesDataStore.edit { prefs ->
             plan.products?.let { prefs[PRODUCTS_JSON] = encodeProducts(it) }
             plan.categories?.let { prefs[CATEGORIES_JSON] = encodeCategories(it) }
             plan.bundleCategories?.let { prefs[BUNDLE_CATEGORIES_JSON] = encodeBundleCategories(it) }
@@ -68,19 +65,19 @@ class PosStore(private val context: Context) : PosPersistence {
     }
 
     override suspend fun saveCart(cart: PosCart) {
-        context.dataStore.edit { prefs ->
+        context.posPreferencesDataStore.edit { prefs ->
             prefs[CART_JSON] = encodePosCartJson(cart)
         }
     }
 
     override suspend fun clearCart() {
-        context.dataStore.edit { prefs ->
+        context.posPreferencesDataStore.edit { prefs ->
             prefs[CART_JSON] = encodePosCartJson(PosCart())
         }
     }
 
     override suspend fun exportFullBackupJson(): String {
-        val prefs = context.dataStore.data.first()
+        val prefs = context.posPreferencesDataStore.data.first()
         val payload = JSONObject().apply {
             put("payloadSchema", BACKUP_SCHEMA_VERSION)
             put("products_json", prefs[PRODUCTS_JSON] ?: "")
@@ -103,7 +100,7 @@ class PosStore(private val context: Context) : PosPersistence {
 
     override suspend fun restoreFullBackupJson(jsonText: String): Result<Unit> = runCatching {
         val payload = parseValidatedBackupPayload(jsonText)
-        context.dataStore.edit { pref ->
+        context.posPreferencesDataStore.edit { pref ->
             pref[PRODUCTS_JSON] = payload.optString("products_json", "")
             pref[CATEGORIES_JSON] = payload.optString("categories_json", "")
             pref[BUNDLE_CATEGORIES_JSON] = payload.optString("bundle_categories_json", "")
@@ -121,7 +118,7 @@ class PosStore(private val context: Context) : PosPersistence {
         val tip = request.tipAmount.coerceAtLeast(0L)
         val now = System.currentTimeMillis()
 
-        context.dataStore.edit { prefs ->
+        context.posPreferencesDataStore.edit { prefs ->
             val products = decodeProducts(prefs[PRODUCTS_JSON].orEmpty())
             val resolvedLines =
                 request.checkoutLines.takeIf { it.isNotEmpty() }
@@ -165,7 +162,7 @@ class PosStore(private val context: Context) : PosPersistence {
     }
 
     override suspend fun undoLastCheckout() {
-        context.dataStore.edit { prefs ->
+        context.posPreferencesDataStore.edit { prefs ->
             val snap = PosPersistSnapshot(
                 products = decodeProducts(prefs[PRODUCTS_JSON].orEmpty()),
                 cart = decodePosCartJson(prefs[CART_JSON].orEmpty()),

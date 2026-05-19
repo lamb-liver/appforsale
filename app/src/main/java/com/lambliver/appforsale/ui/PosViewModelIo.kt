@@ -28,10 +28,10 @@ internal fun PosViewModel.exportCsv(target: DocumentTarget) {
             ).getOrThrow()
             PosOpsLog.csvExported(recordCount = state.salesLog.size)
             posCsvShareUriChannel.send(target.value)
-            posToastChannel.send("CSV 導出成功！")
+            emitToast("CSV 導出成功！")
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "exportCsv failed", e)
-            posToastChannel.send("導出失敗，請再試一次")
+            emitToast("導出失敗，請再試一次", PosToastSeverity.Error)
         }
     }
 }
@@ -42,10 +42,10 @@ internal fun PosViewModel.exportBackupJson(target: DocumentTarget) {
         try {
             posBackupSaf.writeFullBackupJson(getApplication<Application>().contentResolver, uri).getOrThrow()
             PosOpsLog.backupExported(schemaVersion = com.lambliver.appforsale.data.PosStore.BACKUP_SCHEMA_VERSION)
-            posToastChannel.send("備份已儲存")
+            emitToast("備份已儲存")
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "exportBackupJson failed", e)
-            posToastChannel.send("備份失敗，請再試一次")
+            emitToast("備份失敗，請再試一次", PosToastSeverity.Error)
         }
     }
 }
@@ -57,14 +57,18 @@ internal fun PosViewModel.importBackupJson(target: DocumentTarget) {
             posBackupSaf.readUtf8(getApplication<Application>().contentResolver, uri).getOrThrow()
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "importBackupJson read failed", e)
-            posToastChannel.send(BackupRestoreResult.ReadFailed().userMessage)
+            emitToast(BackupRestoreResult.ReadFailed().userMessage, PosToastSeverity.Error)
             return@launch
         }
         if (text.isBlank()) {
-            posToastChannel.send(BackupRestoreResult.ReadFailed().userMessage)
+            emitToast(BackupRestoreResult.ReadFailed().userMessage, PosToastSeverity.Error)
             return@launch
         }
-        posToastChannel.send(restoreBackupFromText(text).userMessage)
+        val result = restoreBackupFromText(text)
+        emitToast(
+            result.userMessage,
+            if (result is BackupRestoreResult.Success) PosToastSeverity.Info else PosToastSeverity.Error,
+        )
     }
 }
 

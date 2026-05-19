@@ -1,10 +1,11 @@
 package com.lambliver.appforsale.ui.pos
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,14 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lambliver.appforsale.BuildConfig
@@ -35,8 +31,10 @@ import com.lambliver.appforsale.ui.AdMobConfig
 import com.lambliver.appforsale.ui.AdsGate
 import com.lambliver.appforsale.ui.ads.TopAnchoredAdaptiveBanner
 import com.lambliver.appforsale.ui.billing.SponsorBillingViewModel
+import com.lambliver.appforsale.ui.feedback.PosFeedbackManager
 import kotlinx.collections.immutable.toImmutableMap
 import java.text.NumberFormat
+import androidx.compose.ui.semantics.Role
 
 internal enum class CatalogTab { Products, Bundles }
 
@@ -62,7 +60,11 @@ internal fun PosMainScreen(
     settingsMenuExpanded: Boolean,
     onSettingsMenuExpandedChange: (Boolean) -> Unit,
     tourBounds: PosTourBounds,
-    haptic: HapticFeedback,
+    feedback: PosFeedbackManager,
+    hapticEnabled: Boolean,
+    soundEnabled: Boolean,
+    onHapticEnabledChange: (Boolean) -> Unit,
+    onSoundEnabledChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val adsReady by AdsGate.mobileAdsReady.collectAsStateWithLifecycle()
@@ -156,6 +158,25 @@ internal fun PosMainScreen(
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
+                            text = { Text("震動回饋") },
+                            leadingIcon = {
+                                if (hapticEnabled) {
+                                    Icon(Icons.Default.Check, contentDescription = null)
+                                }
+                            },
+                            onClick = { onHapticEnabledChange(!hapticEnabled) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("音效回饋") },
+                            leadingIcon = {
+                                if (soundEnabled) {
+                                    Icon(Icons.Default.Check, contentDescription = null)
+                                }
+                            },
+                            onClick = { onSoundEnabledChange(!soundEnabled) },
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
                             text = { Text("備份資料") },
                             onClick = {
                                 onSettingsMenuExpandedChange(false)
@@ -243,7 +264,6 @@ internal fun PosMainScreen(
                 cart = uiState.cart.products.toImmutableMap(),
                 currency = currency,
                 onTap = { product ->
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onUiEvent(
                         PosUiEvent.SetProductCartQty(
                             product.id,
@@ -253,6 +273,7 @@ internal fun PosMainScreen(
                 },
                 onLongPress = { onUiEvent(PosUiEvent.ProductLongPress(it)) },
                 onLongPressCategory = { onUiEvent(PosUiEvent.CategoryLongPress(it)) },
+                onTilePressFeedback = feedback::lightTap,
                 modifier = Modifier.fillMaxWidth().weight(1f)
                     .onGloballyPositioned { tourBounds.productRow.value = it.boundsInRoot() },
             )
@@ -263,7 +284,6 @@ internal fun PosMainScreen(
                 cartBundles = uiState.cart.bundles.toImmutableMap(),
                 currency = currency,
                 onTap = { bundle ->
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onUiEvent(
                         PosUiEvent.SetBundleCartQty(
                             bundle.id,
@@ -273,6 +293,7 @@ internal fun PosMainScreen(
                 },
                 onLongPress = { onUiEvent(PosUiEvent.BundleLongPress(it)) },
                 onLongPressCategory = { onUiEvent(PosUiEvent.BundleCategoryLongPress(it)) },
+                onTilePressFeedback = feedback::lightTap,
                 modifier = Modifier.fillMaxWidth().weight(1f),
             )
         }
@@ -351,8 +372,16 @@ internal fun PosMainScreen(
             }
             AnimatedVisibility(
                 visible = numpadExpanded,
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it },
+                enter = fadeIn(animationSpec = tween(durationMillis = 120)) +
+                    expandVertically(
+                        expandFrom = Alignment.Top,
+                        animationSpec = tween(durationMillis = 220),
+                    ),
+                exit = fadeOut(animationSpec = tween(durationMillis = 90)) +
+                    shrinkVertically(
+                        shrinkTowards = Alignment.Top,
+                        animationSpec = tween(durationMillis = 220),
+                    ),
             ) {
                 Column(Modifier.fillMaxWidth()) {
                     Row(
@@ -472,51 +501,15 @@ internal fun PosMainScreen(
             }
         }
 
-        Button(
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                onUiEvent(PosUiEvent.BeginCheckout)
-            },
+        PosCheckoutButton(
+            displayAmount = uiState.checkoutSurfaceReceivablePreview,
+            itemCount = uiState.cartItemCount,
             enabled = uiState.checkoutGrandBeforeDiscount > 0,
+            onClick = { onUiEvent(PosUiEvent.BeginCheckout) },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp)
-                .height(80.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                if (uiState.checkoutDiscountApplied > 0) {
-                    Text(
-                        text = currency.format(uiState.checkoutGrandBeforeDiscount),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            textDecoration = TextDecoration.LineThrough,
-                        ),
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.48f),
-                    )
-                }
-                Text(
-                    text = if (uiState.checkoutGrandBeforeDiscount > 0) {
-                        "結帳　${currency.format(uiState.checkoutSurfaceReceivablePreview)}"
-                    } else {
-                        "結帳"
-                    },
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Black,
-                    color = if (uiState.checkoutDiscountApplied > 0) {
-                        Color(0xFFFFD600)
-                    } else {
-                        MaterialTheme.colorScheme.onPrimary
-                    },
-                )
-            }
-        }
+                .padding(bottom = 16.dp),
+        )
     }
 }

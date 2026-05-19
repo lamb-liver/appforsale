@@ -18,12 +18,12 @@ internal fun PosViewModel.applyCartResult(result: PosCartCoordinator.CartResult)
     when (result) {
         PosCartCoordinator.CartResult.Ignored -> Unit
         is PosCartCoordinator.CartResult.UserMessage ->
-            viewModelScope.launch { posToastChannel.send(result.message) }
+            emitToastAsync(result.message, PosToastSeverity.Error)
         is PosCartCoordinator.CartResult.Ready -> {
             posCartMemory.value = result.cart
             if (result.toasts.isNotEmpty()) {
                 viewModelScope.launch {
-                    result.toasts.forEach { posToastChannel.send(it) }
+                    result.toasts.forEach { emitToast(it, PosToastSeverity.Error) }
                 }
             }
             scheduleCartFlush(result.cart)
@@ -82,7 +82,7 @@ internal fun PosViewModel.scheduleCartFlush(cart: PosCart) {
             posStore.saveCart(cart)
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "scheduleCartFlush saveCart failed", e)
-            posToastChannel.send("購物車自動儲存失敗")
+            emitToast("購物車自動儲存失敗", PosToastSeverity.Error)
         }
     }
 }
@@ -94,7 +94,7 @@ internal fun PosViewModel.flushCartToDisk() {
             posStore.saveCart(posCartMemory.value)
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "flushCartToDisk saveCart failed", e)
-            posToastChannel.send("購物車儲存失敗")
+            emitToast("購物車儲存失敗", PosToastSeverity.Error)
         }
     }
 }
@@ -116,14 +116,14 @@ internal fun PosViewModel.confirmCheckout(event: PosEvent.ConfirmCheckout) {
 
     val request = when (prep) {
         is PosCheckoutCoordinator.PrepareResult.UserMessage -> {
-            viewModelScope.launch { posToastChannel.send(prep.message) }
+            emitToastAsync(prep.message, PosToastSeverity.Error)
             return
         }
         is PosCheckoutCoordinator.PrepareResult.Ready -> prep.request
     }
 
     if (!posCheckoutInflight.compareAndSet(false, true)) {
-        viewModelScope.launch { posToastChannel.send("結帳處理中，請稍候") }
+        emitToastAsync("結帳處理中，請稍候")
         return
     }
 
@@ -151,7 +151,7 @@ internal fun PosViewModel.confirmCheckout(event: PosEvent.ConfirmCheckout) {
             } catch (e: Throwable) {
                 Log.e(PosViewModel.LOG_TAG, "checkout failed", e)
                 reconcileCartMemoryWithDisk()
-                posToastChannel.send("結帳失敗，請再試一次")
+                emitToast("結帳失敗，請再試一次", PosToastSeverity.Error)
             }
         } finally {
             posCheckoutInflight.set(false)
@@ -165,10 +165,10 @@ internal fun PosViewModel.undoCheckout() {
             posStore.undoLastCheckout()
             posCartMemory.value = posStore.cartFlow.first()
             PosOpsLog.checkoutUndone(txCount = posUiState.value.txCount)
-            posToastChannel.send("已復原上一筆結帳")
+            emitToast("已復原上一筆結帳")
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "undoCheckout failed", e)
-            posToastChannel.send("復原失敗，請再試一次")
+            emitToast("復原失敗，請再試一次", PosToastSeverity.Error)
         }
     }
 }
@@ -182,7 +182,7 @@ internal fun PosViewModel.clearCart() {
             posStore.clearCart()
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "clearCart failed", e)
-            posToastChannel.send("清空失敗：${e.message}")
+            emitToast("清空失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }

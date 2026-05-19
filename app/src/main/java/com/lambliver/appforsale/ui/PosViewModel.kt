@@ -7,6 +7,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
+import com.lambliver.appforsale.data.AppUiPreferences
 import com.lambliver.appforsale.data.PosBackupSafAdapter
 import com.lambliver.appforsale.data.PosCsvExportAdapter
 import com.lambliver.appforsale.data.PosPersistSnapshot
@@ -38,6 +39,9 @@ class PosViewModel @JvmOverloads constructor(
 ) : AndroidViewModel(app) {
 
     internal val posStore: PosPersistence = posStore
+    private val appUiPrefs = AppUiPreferences(app)
+    val hapticEnabledFlow = appUiPrefs.hapticEnabledFlow
+    val soundEnabledFlow = appUiPrefs.soundEnabledFlow
     internal val posCheckoutInflight = AtomicBoolean(false)
     internal val posCsvExport = PosCsvExportAdapter()
     internal val posBackupSaf = PosBackupSafAdapter(posStore)
@@ -62,7 +66,7 @@ class PosViewModel @JvmOverloads constructor(
     /** 畫面唯一訂閱來源（商品、購物車、統計等皆由此組合）。 */
     val uiState: StateFlow<PosUiState> = posUiState.asStateFlow()
 
-    internal val posToastChannel = Channel<String>(Channel.BUFFERED)
+    internal val posToastChannel = Channel<PosToast>(Channel.BUFFERED)
     val toastFlow = posToastChannel.receiveAsFlow()
 
     internal val posCheckoutSuccessChannel = Channel<Unit>(Channel.BUFFERED)
@@ -83,7 +87,7 @@ class PosViewModel @JvmOverloads constructor(
                 reconcileCartMemoryWithDisk()
             } catch (e: Throwable) {
                 Log.e(LOG_TAG, "cart load failed", e)
-                posToastChannel.send("購物車載入失敗，請重新開啟 App")
+                emitToast("購物車載入失敗，請重新開啟 App", PosToastSeverity.Error)
             }
             startObserving()
         }
@@ -155,6 +159,14 @@ class PosViewModel @JvmOverloads constructor(
             is PosEvent.ExportBackupJson -> exportBackupJson(event.target)
             is PosEvent.ImportBackupJson -> importBackupJson(event.target)
         }
+    }
+
+    fun setHapticEnabled(enabled: Boolean) {
+        viewModelScope.launch { appUiPrefs.setHapticEnabled(enabled) }
+    }
+
+    fun setSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch { appUiPrefs.setSoundEnabled(enabled) }
     }
 
     private fun startObserving() {

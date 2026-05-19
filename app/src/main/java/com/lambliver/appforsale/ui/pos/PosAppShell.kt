@@ -4,8 +4,9 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -26,17 +27,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import com.lambliver.appforsale.domain.DocumentTarget
 import com.lambliver.appforsale.domain.PosEvent
-import com.lambliver.appforsale.domain.PaymentMethod
 import com.lambliver.appforsale.ui.OnboardingTour
 import com.lambliver.appforsale.ui.PosViewModel
 import com.lambliver.appforsale.ui.TourStep
 import com.lambliver.appforsale.ui.billing.SponsorBillingViewModel
+import com.lambliver.appforsale.ui.feedback.PosFeedbackManager
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 
@@ -49,20 +47,24 @@ internal fun PosAppShell(
     currency: NumberFormat,
     snackbarHostState: SnackbarHostState,
     overlay: PosOverlayState,
+    feedback: PosFeedbackManager,
+    hapticEnabled: Boolean,
+    soundEnabled: Boolean,
+    onHapticEnabledChange: (Boolean) -> Unit,
+    onSoundEnabledChange: (Boolean) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
     var showTour by remember { mutableStateOf(!prefs.getBoolean("tour_done", false)) }
 
     val tourBounds = remember {
         PosTourBounds(
-            statsRow = mutableStateOf<Rect?>(null),
-            fab = mutableStateOf<Rect?>(null),
-            productRow = mutableStateOf<Rect?>(null),
-            discountBtn = mutableStateOf<Rect?>(null),
-            numpad = mutableStateOf<Rect?>(null),
+            statsRow = mutableStateOf(null),
+            fab = mutableStateOf(null),
+            productRow = mutableStateOf(null),
+            discountBtn = mutableStateOf(null),
+            numpad = mutableStateOf(null),
         )
     }
 
@@ -78,12 +80,12 @@ internal fun PosAppShell(
     var numpadExpanded by rememberSaveable { mutableStateOf(false) }
 
     val collapseNumpad: () -> Unit = {
-        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
         numpadExpanded = false
     }
 
-    LaunchedEffect(vm.checkoutSuccessFlow) {
+    LaunchedEffect(vm.checkoutSuccessFlow, feedback) {
         vm.checkoutSuccessFlow.collect {
+            feedback.checkoutSuccess()
             scope.launch { overlay.checkoutSheetState.hide() }
             numpadExpanded = false
             val result = snackbarHostState.showSnackbar(
@@ -99,7 +101,7 @@ internal fun PosAppShell(
 
     LaunchedEffect(vm.csvShareUriFlow) {
         vm.csvShareUriFlow.collect { uriString ->
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/csv"
                 putExtra(Intent.EXTRA_STREAM, uri)
@@ -178,7 +180,11 @@ internal fun PosAppShell(
                 settingsMenuExpanded = overlay.settingsMenuExpanded,
                 onSettingsMenuExpandedChange = { overlay.settingsMenuExpanded = it },
                 tourBounds = tourBounds,
-                haptic = haptic,
+                feedback = feedback,
+                hapticEnabled = hapticEnabled,
+                soundEnabled = soundEnabled,
+                onHapticEnabledChange = onHapticEnabledChange,
+                onSoundEnabledChange = onSoundEnabledChange,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -187,7 +193,7 @@ internal fun PosAppShell(
             OnboardingTour(
                 steps = tourSteps,
                 onFinish = {
-                    prefs.edit().putBoolean("tour_done", true).apply()
+                    prefs.edit { putBoolean("tour_done", true) }
                     showTour = false
                 },
             )
@@ -238,5 +244,6 @@ internal fun PosAppShell(
         pendingRestoreUri = overlay.pendingRestoreUri,
         onDismissRestoreConfirm = { overlay.pendingRestoreUri = null },
         onConfirmRestore = { uri -> vm.onEvent(PosEvent.ImportBackupJson(DocumentTarget(uri.toString()))) },
+        feedback = feedback,
     )
 }

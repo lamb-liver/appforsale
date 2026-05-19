@@ -35,3 +35,6 @@ val BundleTilePalette = listOf(
     Color(0xFFD50000), Color(0xFFC51162), Color(0xFFAA00FF), Color(0xFF2962FF),
     Color(0xFF00BFA5), Color(0xFFFF6D00), Color(0xFF00C853), Color(0xFFFF4081),
 )
+
+/** 主畫面收款按鈕（與商品卡暖色調一致） */
+val PosCheckoutOrange = Color(0xFFF97316)

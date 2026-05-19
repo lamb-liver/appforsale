@@ -116,6 +116,10 @@ data class PosUiState(
             CheckoutAmounts.CatalogSubtotal(subtotal),
             CheckoutAmounts.NetPaymentAdjustment(checkoutPaymentAdjustment),
         ).cents
+
+    /** 購物車件數（商品 qty 合計 + 套組 qty 合計）。 */
+    val cartItemCount: Int get() =
+        cart.products.values.sum() + cart.bundles.values.sum()
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -154,3 +158,14 @@ sealed interface PosEvent {
     data class ExportBackupJson(val target: DocumentTarget) : PosEvent
     data class ImportBackupJson(val target: DocumentTarget) : PosEvent
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// UI 回饋（Toast + 觸覺 severity）
+// ════════════════════════════════════════════════════════════════════════════
+
+enum class PosToastSeverity { Info, Error }
+
+data class PosToast(
+    val message: String,
+    val severity: PosToastSeverity = PosToastSeverity.Info,
+)

@@ -19,6 +19,7 @@ import com.lambliver.appforsale.domain.*
 import com.lambliver.appforsale.ui.PosViewModel
 import com.lambliver.appforsale.ui.dialog.*
 import com.lambliver.appforsale.ui.billing.SponsorBillingViewModel
+import com.lambliver.appforsale.ui.feedback.PosFeedbackManager
 import com.lambliver.appforsale.ui.sponsor.SponsorDeveloperBottomSheet
 import java.text.NumberFormat
 
@@ -57,6 +58,7 @@ internal fun PosAppOverlays(
     pendingRestoreUri: Uri?,
     onDismissRestoreConfirm: () -> Unit,
     onConfirmRestore: (Uri) -> Unit,
+    feedback: PosFeedbackManager,
 ) {
     SponsorDeveloperBottomSheet(
         billingVm = billingVm,
@@ -71,6 +73,7 @@ internal fun PosAppOverlays(
             currency = currency,
             onDismiss = onDismissCheckoutSheet,
             onConfirm = onConfirmCheckout,
+            feedback = feedback,
         )
     }
 

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import com.lambliver.appforsale.domain.PaymentMethod
+import com.lambliver.appforsale.ui.feedback.PosFeedbackManager
 import com.lambliver.appforsale.ui.pos.CheckoutBottomSheet
 import com.lambliver.appforsale.ui.pos.CheckoutSheetTestTags
 import com.lambliver.appforsale.ui.theme.AppforsaleTheme
@@ -31,6 +32,8 @@ class CheckoutBottomSheetComposeTest {
 
     private val currency = NumberFormat.getCurrencyInstance(Locale.TAIWAN)
 
+    private val noopFeedback = PosFeedbackManager.noop()
+
     @OptIn(ExperimentalMaterial3Api::class)
     private fun launchSheet(
         total: Long = 120L,
@@ -46,6 +49,7 @@ class CheckoutBottomSheetComposeTest {
                     currency = currency,
                     onDismiss = {},
                     onConfirm = onConfirm,
+                    feedback = noopFeedback,
                 )
             }
         }

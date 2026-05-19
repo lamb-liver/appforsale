@@ -92,7 +92,7 @@ class PosViewModelCheckoutTest {
 
         assertEquals(mapOf("p1" to 2), persist.cartFlow.first().products)
         assertEquals(0L, persist.txCountFlow.first())
-        assertEquals("結帳失敗，請再試一次", vm.toastFlow.first())
+        assertEquals("結帳失敗，請再試一次", vm.toastFlow.first().message)
         assertEquals(mapOf("p1" to 2), vm.uiState.value.cart.products)
     }
 
@@ -116,7 +116,7 @@ class PosViewModelCheckoutTest {
         )
         advanceUntilIdle()
 
-        assertEquals("購物車內容已變更，請關閉後再結帳", vm.toastFlow.first())
+        assertEquals("購物車內容已變更，請關閉後再結帳", vm.toastFlow.first().message)
         assertEquals(mapOf("p1" to 2), persist.cartFlow.first().products)
         assertEquals(0L, persist.txCountFlow.first())
         assertEquals(mapOf("p1" to 2), vm.uiState.value.cart.products)
@@ -132,7 +132,7 @@ class PosViewModelCheckoutTest {
         vm.onCheckoutClicked(locked!!)
         advanceUntilIdle()
 
-        assertEquals("結帳失敗，請再試一次", vm.toastFlow.first())
+        assertEquals("結帳失敗，請再試一次", vm.toastFlow.first().message)
         assertEquals(locked, vm.uiState.value.checkoutSheetSnapshot)
     }
 }

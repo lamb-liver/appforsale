@@ -10,6 +10,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lambliver.appforsale.ui.billing.SponsorBillingViewModel
+import com.lambliver.appforsale.domain.PosToastSeverity
+import com.lambliver.appforsale.ui.feedback.rememberPosFeedback
 import com.lambliver.appforsale.ui.pos.PosAppShell
 import com.lambliver.appforsale.ui.pos.rememberPosOverlayState
 import java.text.NumberFormat
@@ -25,8 +27,17 @@ fun PosApp(vm: PosViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
     val overlay = rememberPosOverlayState(scope)
 
-    LaunchedEffect(vm.toastFlow) {
-        vm.toastFlow.collect { snackbarHostState.showSnackbar(it) }
+    val hapticEnabled by vm.hapticEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
+    val soundEnabled by vm.soundEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
+    val feedback = rememberPosFeedback(hapticEnabled, soundEnabled)
+
+    LaunchedEffect(vm.toastFlow, feedback) {
+        vm.toastFlow.collect { toast ->
+            if (toast.severity == PosToastSeverity.Error) {
+                feedback.error()
+            }
+            snackbarHostState.showSnackbar(toast.message)
+        }
     }
     LaunchedEffect(billingVm) {
         billingVm.billingMessage.collect { snackbarHostState.showSnackbar(it) }
@@ -39,5 +50,10 @@ fun PosApp(vm: PosViewModel = viewModel()) {
         currency = currency,
         snackbarHostState = snackbarHostState,
         overlay = overlay,
+        feedback = feedback,
+        hapticEnabled = hapticEnabled,
+        soundEnabled = soundEnabled,
+        onHapticEnabledChange = vm::setHapticEnabled,
+        onSoundEnabledChange = vm::setSoundEnabled,
     )
 }

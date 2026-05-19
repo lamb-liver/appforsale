@@ -18,7 +18,7 @@ internal fun PosViewModel.addProduct(name: String, price: Long, categoryId: Stri
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addProduct failed", e)
-            posToastChannel.send("新增商品失敗：${e.message}")
+            emitToast("新增商品失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -33,7 +33,7 @@ internal fun PosViewModel.updateProduct(id: String, name: String, price: Long, c
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateProduct failed", e)
-            posToastChannel.send("編輯商品失敗：${e.message}")
+            emitToast("編輯商品失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -48,7 +48,7 @@ internal fun PosViewModel.setProductStock(productId: String, stock: Long?) {
             posStore.applyCatalog(CatalogPersistPlan(products = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "setProductStock failed", e)
-            posToastChannel.send("更新庫存失敗：${e.message}")
+            emitToast("更新庫存失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -67,7 +67,7 @@ internal fun PosViewModel.deleteProduct(productId: String) {
     ) {
         is PosCatalogCoordinator.CatalogResult.Ignored -> return
         is PosCatalogCoordinator.CatalogResult.UserMessage -> {
-            viewModelScope.launch { posToastChannel.send(r.message) }
+            emitToastAsync(r.message, PosToastSeverity.Error)
             return
         }
         is PosCatalogCoordinator.CatalogResult.Ready -> {
@@ -85,7 +85,7 @@ internal fun PosViewModel.deleteProduct(productId: String) {
                     posUiState.update { it.copy(dialogState = DialogState.None) }
                 } catch (e: Throwable) {
                     Log.e(PosViewModel.LOG_TAG, "deleteProduct failed", e)
-                    posToastChannel.send("刪除商品失敗：${e.message}")
+                    emitToast("刪除商品失敗：${e.message}", PosToastSeverity.Error)
                 }
             }
         }
@@ -94,12 +94,12 @@ internal fun PosViewModel.deleteProduct(productId: String) {
 
 internal fun PosViewModel.addBundle(name: String, price: Long, categoryId: String, components: List<BundleComponent>) {
     if (posUiState.value.products.isEmpty()) {
-        viewModelScope.launch { posToastChannel.send("請先新增一般商品，才能建立套組") }
+        emitToastAsync("請先新增一般商品，才能建立套組", PosToastSeverity.Error)
         return
     }
     val products = posUiState.value.products
     val cleaned = posNormalizeComponents(products, components) ?: run {
-        viewModelScope.launch { posToastChannel.send("成分須指向現有商品且每套數量至少 1") }
+        emitToastAsync("成分須指向現有商品且每套數量至少 1", PosToastSeverity.Error)
         return
     }
     val bundle = Bundle(UUID.randomUUID().toString(), name.trim(), price.coerceAtLeast(0L), categoryId, cleaned)
@@ -110,19 +110,19 @@ internal fun PosViewModel.addBundle(name: String, price: Long, categoryId: Strin
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addBundle failed", e)
-            posToastChannel.send("新增套組失敗：${e.message}")
+            emitToast("新增套組失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
 
 internal fun PosViewModel.updateBundle(id: String, name: String, price: Long, categoryId: String, components: List<BundleComponent>) {
     if (posUiState.value.products.isEmpty()) {
-        viewModelScope.launch { posToastChannel.send("請先新增一般商品") }
+        emitToastAsync("請先新增一般商品", PosToastSeverity.Error)
         return
     }
     val products = posUiState.value.products
     val cleaned = posNormalizeComponents(products, components) ?: run {
-        viewModelScope.launch { posToastChannel.send("成分須指向現有商品且每套數量至少 1") }
+        emitToastAsync("成分須指向現有商品且每套數量至少 1", PosToastSeverity.Error)
         return
     }
     val updated = posUiState.value.bundles.map {
@@ -134,7 +134,7 @@ internal fun PosViewModel.updateBundle(id: String, name: String, price: Long, ca
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateBundle failed", e)
-            posToastChannel.send("更新套組失敗：${e.message}")
+            emitToast("更新套組失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -153,7 +153,7 @@ internal fun PosViewModel.deleteBundle(bundleId: String) {
     ) {
         is PosCatalogCoordinator.CatalogResult.Ignored -> return
         is PosCatalogCoordinator.CatalogResult.UserMessage -> {
-            viewModelScope.launch { posToastChannel.send(r.message) }
+            emitToastAsync(r.message, PosToastSeverity.Error)
             return
         }
         is PosCatalogCoordinator.CatalogResult.Ready -> {
@@ -171,7 +171,7 @@ internal fun PosViewModel.deleteBundle(bundleId: String) {
                     posUiState.update { it.copy(dialogState = DialogState.None) }
                 } catch (e: Throwable) {
                     Log.e(PosViewModel.LOG_TAG, "deleteBundle failed", e)
-                    posToastChannel.send("刪除套組失敗：${e.message}")
+                    emitToast("刪除套組失敗：${e.message}", PosToastSeverity.Error)
                 }
             }
         }
@@ -186,7 +186,7 @@ internal fun PosViewModel.addBundleCategory(name: String) {
             posStore.applyCatalog(CatalogPersistPlan(bundleCategories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addBundleCategory failed", e)
-            posToastChannel.send("新增套組分類失敗：${e.message}")
+            emitToast("新增套組分類失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -200,7 +200,7 @@ internal fun PosViewModel.updateBundleCategory(id: String, name: String) {
             posStore.applyCatalog(CatalogPersistPlan(bundleCategories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateBundleCategory failed", e)
-            posToastChannel.send("編輯套組分類失敗：${e.message}")
+            emitToast("編輯套組分類失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -220,7 +220,7 @@ internal fun PosViewModel.deleteBundleCategory(id: String) {
             )
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "deleteBundleCategory failed", e)
-            posToastChannel.send("刪除套組分類失敗：${e.message}")
+            emitToast("刪除套組分類失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -233,7 +233,7 @@ internal fun PosViewModel.addCategory(name: String) {
             posStore.applyCatalog(CatalogPersistPlan(categories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addCategory failed", e)
-            posToastChannel.send("新增分類失敗：${e.message}")
+            emitToast("新增分類失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -247,7 +247,7 @@ internal fun PosViewModel.updateCategory(id: String, name: String) {
             posStore.applyCatalog(CatalogPersistPlan(categories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateCategory failed", e)
-            posToastChannel.send("編輯分類失敗：${e.message}")
+            emitToast("編輯分類失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
@@ -267,7 +267,7 @@ internal fun PosViewModel.deleteCategory(id: String) {
             )
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "deleteCategory failed", e)
-            posToastChannel.send("刪除分類失敗：${e.message}")
+            emitToast("刪除分類失敗：${e.message}", PosToastSeverity.Error)
         }
     }
 }
