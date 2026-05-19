@@ -2,6 +2,27 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [1.2.0] - 2026-05-20
+
+### Added
+
+- 贊助開發者：三檔固定金額（30／99／150 元）經綠界付款頁，以外部瀏覽器完成（`SponsorLinks`）
+
+### Removed
+
+- AdMob 橫幅、UMP 同意流程
+- Google Play 應用內購（贊助／去廣告）
+- `ACCESS_NETWORK_STATE` 權限（POS 本機不需）
+
+### Changed
+
+- 套件名稱 `com.lambliver.stallpos`；無商業化 SDK，適合 sideload 發佈
+
+### Documentation
+
+- 發佈／安裝／綠界設定：[docs/distribution.md](docs/distribution.md)
+- README 移除 AdMob、Play Billing 相關說明
+
 ## [1.1.0] - 2026-05-20
 
 ### Added
@@ -27,5 +48,6 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[1.2.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.2.0
 [1.1.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.0.0

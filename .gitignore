@@ -22,7 +22,7 @@ build/
 **/build/
 !gradle/wrapper/gradle-wrapper.jar
 
-# Local configuration (SDK path, AdMob release IDs, signing)
+# Local configuration (SDK path, signing)
 local.properties
 *.keystore
 *.jks

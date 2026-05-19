@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "appforsale"
+rootProject.name = "stallpos"
 include(":app")

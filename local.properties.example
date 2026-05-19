@@ -1,13 +1,11 @@
-# Copy to local.properties (gitignored) and adjust paths / IDs.
+# Copy to local.properties (gitignored) and adjust paths.
 #   cp local.properties.example local.properties
 #
 # Android SDK — required for Gradle / Android Studio
 sdk.dir=/path/to/Android/sdk
 
-# Release AdMob (optional). Omit to use Google test IDs so `assembleRelease` still builds.
-# Get values from AdMob console. Debug builds always use test IDs.
-# admob.application.id=ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy
-# admob.banner.unit.id=ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz
+# 綠界贊助付款 URL：填入 app/.../ui/sponsor/SponsorLinks.kt（非本檔）
+#   ECPAY_URL_TIER_SMALL / MEDIUM / LARGE
 
 # Release signing (optional — wire in app/build.gradle.kts when you add signingConfigs)
 # storeFile=/path/to/release.keystore

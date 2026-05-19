@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 僅「贊助開發者」以瀏覽器開啟綠界付款頁；POS 結帳本機離線 -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
@@ -14,16 +14,12 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Appforsale">
-        <!-- 值由 Gradle manifestPlaceholders 注入：debug＝Google 測試 App Id，release＝AdMob 正式 App Id -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="${admobApplicationId}" />
+        android:theme="@style/Theme.StallPos">
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.Appforsale">
+            android:theme="@style/Theme.StallPos">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
