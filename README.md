@@ -5,7 +5,7 @@
 **離線可用的 Android 結帳 app**：快選商品／套組、現場收款、紀錄今日營收；刻意不做進銷存或複雜後台。
 
 > 本 repo 為 **Kotlin / Gradle** 專案（非 Node.js），依賴由 `gradle/libs.versions.toml` 管理。  
-> English: [README.en.md](README.en.md) · **發佈／安裝／綠界**：[docs/distribution.md](docs/distribution.md)
+> English: [README.en.md](docs/README.en.md) · **發佈／安裝／綠界**：[docs/distribution.md](docs/distribution.md)
 
 ---
 
@@ -48,12 +48,15 @@ stallpos/
 │       ├── animation/   # 快選 tile 按壓縮放
 │       └── pos/         # PosAppShell、主畫面、PosCheckoutButton、結帳／儀表 sheet
 ├── app/src/test/        # 單元測試（Coordinator、JSON、結帳金額…）
-├── docs/adr/            # 架構決策紀錄
-├── docs/distribution.md # 發佈、sideload 安裝、綠界贊助設定
-├── CONTEXT.md           # 領域名詞（商品、購物車、結帳…）
+├── docs/
+│   ├── adr/             # 架構決策紀錄
+│   ├── distribution.md  # 發佈、sideload 安裝、綠界贊助設定
+│   ├── CONTEXT.md       # 領域名詞（商品、購物車、結帳…）
+│   ├── CHANGELOG.md
+│   ├── README.en.md
+│   └── cursor/rule/     # Cursor 規則
 ├── gradle/              # Version catalog、Wrapper
 ├── VERSION              # App 版本單一來源（同步 versionName）
-├── CHANGELOG.md
 ├── local.properties.example
 └── .cursorrules         # 減法設計、戶外高對比 UI
 ```
@@ -66,7 +69,7 @@ stallpos/
 | **domain** | 純規則與協調結果（`CartResult`、`CatalogPersistPlan`、`CheckoutWriteRequest`）；`PosUiState` 衍生欄位（`cartItemCount`、`checkoutSurfaceReceivablePreview`） |
 | **data** | `PosPersistence` 介面 + `PosStore`（DataStore）；`AppUiPreferences`（`haptic_enabled`／`sound_enabled`）；`applyCatalog` 原子寫入；`checkout` 為 internal extension |
 
-建議閱讀順序：**`README` → `CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCartCoordinator.kt` → `domain/PosCatalogCoordinator.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/PosStore.kt`**。
+建議閱讀順序：**`README` → `docs/CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCartCoordinator.kt` → `domain/PosCatalogCoordinator.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/PosStore.kt`**。
 
 ---
 
@@ -98,7 +101,7 @@ stallpos/
 | **`schemaVersion`** | Envelope（備份檔根物件） | `parseBackupEnvelope` 驗證與遷移步驟編排（見 `BackupMigration`） |
 | **`payloadSchema`** | `payload` 物件內 | 業務資料束（`products_json` 等）形狀；`migrateV1ToV2` 僅補此標記 |
 
-現行皆為 **2**。舊 **schemaVersion: 1** 備份還原時由 `parseValidatedBackupPayload` 自動遷移；`migrateV1ToV2` **冪等**（已有 `payloadSchema` 不再寫入）。語意詳見 `CONTEXT.md` 與 `data/BackupMigration.kt`。
+現行皆為 **2**。舊 **schemaVersion: 1** 備份還原時由 `parseValidatedBackupPayload` 自動遷移；`migrateV1ToV2` **冪等**（已有 `payloadSchema` 不再寫入）。語意詳見 `docs/CONTEXT.md` 與 `data/BackupMigration.kt`。
 
 儀表測試（需模擬器／裝置）：`PosStoreInstrumentedTest`（DataStore 結帳／復原端到端）。
 

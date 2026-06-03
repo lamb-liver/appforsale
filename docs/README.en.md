@@ -5,7 +5,7 @@
 An **offline-first Android checkout app** for market stalls and small booths: quick-tap products and bundles, take payment on site, and track today’s revenue—without inventory ERP or a heavy back office.
 
 > This repo is a **Kotlin / Gradle** project (not Node.js). Dependencies are managed via `gradle/libs.versions.toml`.  
-> 中文說明: [README.md](README.md) · **Distribution / install / ECPay**: [docs/distribution.md](docs/distribution.md)
+> 中文說明: [README.md](../README.md) · **Distribution / install / ECPay**: [distribution.md](distribution.md)
 
 ---
 
@@ -31,7 +31,7 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 | Jetpack DataStore (Preferences + JSON) | Kotlin Coroutines · Flow | Lifecycle (`ProcessLifecycleOwner`, Compose lifecycle) |
 | ECPay sponsor (external browser) | kotlinx.collections.immutable | No Hilt / Room |
 
-> **No Hilt / Room**: persistence and checkout semantics are documented in [ADR-0001](docs/adr/0001-pos-state-in-datastore-json.md).
+> **No Hilt / Room**: persistence and checkout semantics are documented in [ADR-0001](adr/0001-pos-state-in-datastore-json.md).
 
 ---
 
@@ -48,12 +48,15 @@ stallpos/
 │       ├── animation/   # Quick-tap tile press scale
 │       └── pos/         # PosAppShell, main screen, PosCheckoutButton, checkout / dashboard sheets
 ├── app/src/test/        # Unit tests (coordinators, JSON, checkout amounts…)
-├── docs/adr/            # Architecture decision records
-├── docs/distribution.md # Release, sideload install, ECPay sponsor setup
-├── CONTEXT.md           # Domain glossary (products, cart, checkout…)
+├── docs/
+│   ├── adr/             # Architecture decision records
+│   ├── distribution.md  # Release, sideload install, ECPay sponsor setup
+│   ├── CONTEXT.md       # Domain glossary (products, cart, checkout…)
+│   ├── CHANGELOG.md
+│   ├── README.en.md
+│   └── cursor/rule/     # Cursor rules
 ├── gradle/              # Version catalog, Wrapper
 ├── VERSION              # Single source for app version (synced to versionName)
-├── CHANGELOG.md
 ├── local.properties.example
 └── .cursorrules         # Subtraction design, high-contrast outdoor UI
 ```
@@ -106,11 +109,11 @@ Instrumented (device/emulator): `PosStoreInstrumentedTest` (DataStore checkout/u
 
 ### Architecture decisions (ADR)
 
-- [ADR-0001 — DataStore + JSON for app state](docs/adr/0001-pos-state-in-datastore-json.md)
-- [ADR-0002 — Reconcile amounts at checkout confirm](docs/adr/0002-checkout-reconcile-at-confirm.md)
-- [ADR-0003 — In-memory cart with debounced disk flush](docs/adr/0003-cart-memory-with-debounced-disk-flush.md)
+- [ADR-0001 — DataStore + JSON for app state](adr/0001-pos-state-in-datastore-json.md)
+- [ADR-0002 — Reconcile amounts at checkout confirm](adr/0002-checkout-reconcile-at-confirm.md)
+- [ADR-0003 — In-memory cart with debounced disk flush](adr/0003-cart-memory-with-debounced-disk-flush.md)
 
-Checkout money semantics: `docs/phase-a-checkout-money-flow.md`.
+Checkout money semantics: `phase-a-checkout-money-flow.md`.
 
 #### CSV export and share (UI flow)
 
@@ -138,7 +141,7 @@ Checkout money semantics: `docs/phase-a-checkout-money-flow.md`.
 2. Pick a tier (e.g. 打道音遊（贊助開發者30元）)
 3. Complete payment in the external browser (ECPay)
 
-See **[docs/distribution.md](docs/distribution.md)** for ECPay URLs, sideload install, and release checklist.
+See **[distribution.md](distribution.md)** for ECPay URLs, sideload install, and release checklist.
 
 ---
 
@@ -157,7 +160,7 @@ See **[docs/distribution.md](docs/distribution.md)** for ECPay URLs, sideload in
    ```
 4. Run the app: entry `com.lambliver.stallpos.ui.MainActivity`; `applicationId` matches `namespace`.
 
-**Distribution**: sideload APK — [docs/distribution.md](docs/distribution.md) (build, install, ECPay, release checklist).
+**Distribution**: sideload APK — [distribution.md](distribution.md) (build, install, ECPay, release checklist).
 
 ---
 

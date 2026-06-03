@@ -83,7 +83,7 @@ sealed class SaleCheckoutLine {
 /**
  * 單筆結帳成功之持久化紀錄（追加語意）。
  *
- * **金額欄位（本通路）** — 與 [CONTEXT.md]「結帳金額型別」對照：
+ * **金額欄位（本通路）** — 與 [docs/CONTEXT.md]「結帳金額型別」對照：
  * - [subtotal]／[total]：皆為 **應收款**（`AmountDue`，不含小費）；**不是**購物車目錄小計。
  * - [discount]：恒為 `0`；加價／折讓已折進結帳當下之淨調整，不落此欄。
  * - 目錄小計僅存於結帳列 [checkoutLines] 加總語意，無獨立持久化鍵（避免 JSON 遷移）。

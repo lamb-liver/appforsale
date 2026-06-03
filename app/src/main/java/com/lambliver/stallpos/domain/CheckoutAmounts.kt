@@ -3,7 +3,7 @@ package com.lambliver.stallpos.domain
 /**
  * 結帳金額單一模組：以型別區分「目錄小計／淨調整／應收款」，避免裸 [Long] 與多義 `total`。
  *
- * 詞彙對照見 [CONTEXT.md]「結帳金額型別」；流程見 `docs/phase-a-checkout-money-flow.md`。
+ * 詞彙對照見 [docs/CONTEXT.md]「結帳金額型別」；流程見 `docs/phase-a-checkout-money-flow.md`。
  */
 object CheckoutAmounts {
 

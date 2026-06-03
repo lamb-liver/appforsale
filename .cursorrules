@@ -1,7 +1,7 @@
 這是一個為「實體市集攤販創作者」開發的 Android POS 系統。
 技術棧：Kotlin、Jetpack Compose、MVVM 架構、Jetpack DataStore。
 
-領域名詞：`CONTEXT.md`；架構決策：`docs/adr/`（結帳金額語意另見 `docs/phase-a-checkout-money-flow.md`）。
+領域名詞：`docs/CONTEXT.md`；架構決策：`docs/adr/`（結帳金額語意另見 `docs/phase-a-checkout-money-flow.md`）。
 
 開發最高指導原則為「減法設計（Subtraction in Design）」：  
 

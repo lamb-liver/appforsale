@@ -11,7 +11,7 @@
 
 在確認 **結帳** 事件中，強制載入三件互相校驗的事實：當時的目錄小計快照、對應的加價／折讓淨值、以及使用者當下確認所見之**應收款**。將「應收公式」集中到可單獨撰寫單元測試的一層，若不一致即拒絕結帳並提示，不進入持久化更新。
 
-對帳詞彙、金流與細部欄位語意載於：`docs/phase-a-checkout-money-flow.md`。
+對帳詞彙、金流與細部欄位語意載於：`../phase-a-checkout-money-flow.md`。
 
 ## Alternatives considered
 
@@ -21,4 +21,4 @@
 ## Consequences
 
 - **較強**：對帳意圖與規則**集中**並可單獨加測；未來調整結帳欄位時有明確銜接面。
-- **較需注意**：詞彙上多個英文／UI 名目含 `total`，閱讀程式必須搭配詞彙表與階段 A 對照文件，見 `CONTEXT.md` 與 `docs/phase-a-checkout-money-flow.md`。
+- **較需注意**：詞彙上多個英文／UI 名目含 `total`，閱讀程式必須搭配詞彙表與階段 A 對照文件，見 `../CONTEXT.md` 與 `../phase-a-checkout-money-flow.md`。

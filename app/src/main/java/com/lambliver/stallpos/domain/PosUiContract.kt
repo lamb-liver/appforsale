@@ -84,7 +84,7 @@ data class PosUiState(
     /**
      * 歷史欄位：恒等於 [subtotal]（目錄小計）。
      * 與 [SaleRecord.total]（應收款、不含小費）及 [LastCheckout.total]（應收＋小費）不同義。
-     * 詳見 `CONTEXT.md` 與 `docs/phase-a-checkout-money-flow.md`。
+     * 詳見 `docs/CONTEXT.md` 與 `docs/phase-a-checkout-money-flow.md`。
      */
     @Deprecated(
         message = "恒等於目錄小計，請改用 subtotal；勿與 SaleRecord.total / LastCheckout.total 混淆",

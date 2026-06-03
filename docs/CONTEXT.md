@@ -22,7 +22,7 @@
 ### 應收款（此筆交易客人應付）
 結帳當下，折讓／加價與購物車目錄小計合成後的金額，作為確認收款動作的依據。程式內可能存在多種 `total` 命名——彼此語意不全相同；對帳時以對照文件為準。
 
-**`PosUiState.total` 備註（不做 rename）**：歷史上恒等於**目錄小計**（`subtotal`），與 `SaleRecord.total`（**應收款**，無小費）及 `LastCheckout.total`（應收＋小費）不同義。為避免大範圍改動，欄位名維持 `total`，語意以本檔與 `docs/phase-a-checkout-money-flow.md` 為準。
+**`PosUiState.total` 備註（不做 rename）**：歷史上恒等於**目錄小計**（`subtotal`），與 `SaleRecord.total`（**應收款**，無小費）及 `LastCheckout.total`（應收＋小費）不同義。為避免大範圍改動，欄位名維持 `total`，語意以本檔與 `phase-a-checkout-money-flow.md` 為準。
 
 ### 結帳金額型別（`CheckoutAmounts` 模組）
 

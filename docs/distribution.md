@@ -69,7 +69,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | 步驟 | 說明 |
 |------|------|
 | 測試 | `./gradlew :app:testDebugUnitTest` |
-| 版本 | 更新 `VERSION`、`versionCode`、`CHANGELOG.md` |
+| 版本 | 更新 `VERSION`、`versionCode`、`docs/CHANGELOG.md` |
 | 綠界 | 若開放贊助，確認三個 `ECPAY_URL_*` 已填且實機可開啟 |
 | 簽章 | Release APK 已簽章 |
 | Git tag | 例：`git tag v1.2.0` |
@@ -89,4 +89,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
-English summary: see [README.en.md](../README.en.md) · build with Gradle · install APK sideload · set ECPay URLs in `SponsorLinks.kt`.
+English summary: see [README.en.md](README.en.md) · build with Gradle · install APK sideload · set ECPay URLs in `SponsorLinks.kt`.

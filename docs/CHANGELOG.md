@@ -20,7 +20,7 @@
 
 ### Documentation
 
-- 發佈／安裝／綠界設定：[docs/distribution.md](docs/distribution.md)
+- 發佈／安裝／綠界設定：[distribution.md](distribution.md)
 - README 移除 AdMob、Play Billing 相關說明
 
 ## [1.1.0] - 2026-05-20
