@@ -23,6 +23,9 @@ class PosStoreCommitCheckoutTest {
                     total = -1L,
                     dateKey = "2026-05-18",
                     paymentMethod = PaymentMethod.CASH,
+                    checkoutLines = emptyList(),
+                    stockDeductions = emptyMap(),
+                    tipAmount = 0L,
                 ),
             )
             error("expected IllegalArgumentException")
