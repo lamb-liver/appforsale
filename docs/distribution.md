@@ -107,6 +107,7 @@ Repository secrets：
 - `STALLPOS_RELEASE_KEY_PASSWORD`
 
 發布後若需修正，建立下一個 patch version；不得移動 tag 或替換 assets。
+若 tag 已正確建立、但 Release workflow 僅因 CI 基礎設施失敗，可執行 `gh workflow run android.yml --ref main -f tag=v1.5.0` 重跑同一 tag；不得重新打 tag。
 
 ---
 

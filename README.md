@@ -125,7 +125,7 @@ v1.5 驗收基線（2026-08-22）：128 個 unit tests、17 個 API 35 instrumen
 | Android Auto Backup／D2D | 不支援；Manifest 與 Android 11／12+ 規則均排除 App data |
 | Release APK | 永久 production certificate 簽署；certificate fingerprint 見 `RELEASE_CERT_SHA256` |
 
-PR 與 `main` push 會執行 unit、lint、debug build 與 API 35 instrumented tests。`v*` tag 只有在版本、main ancestry、CHANGELOG、Release collision 與 Immutable Releases 驗證通過後，才會建立 signed APK、APK SHA-256、draft Release，逐 byte 核對 assets 後發布。詳見 [android.yml](.github/workflows/android.yml) 與 [distribution.md](docs/distribution.md)。
+PR 與 `main` push 會執行 unit、lint、debug build 與 API 35 instrumented tests。Repository 必須先由 maintainer 啟用 Immutable Releases；`v*` tag 通過版本、main ancestry、CHANGELOG 與 Release collision 驗證後，才會建立 signed APK、APK SHA-256、draft Release，逐 byte 核對 assets，並在發布後驗證 `immutable=true`。既有 tag 若只因 pipeline 基礎設施失敗，可由手動入口重跑同一 tag，不得移動 tag。詳見 [android.yml](.github/workflows/android.yml) 與 [distribution.md](docs/distribution.md)。
 
 ---
 
