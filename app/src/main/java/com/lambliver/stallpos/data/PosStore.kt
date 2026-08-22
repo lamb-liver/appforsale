@@ -9,18 +9,14 @@ import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 import java.util.UUID
 
-/**
- * DataStore 協調：**偏好鍵讀寫**、**結帳／復原交易**。
- *
- * JSON 形狀見 [PosPersistCatalogJson]（目錄）、[PosPersistJson]（購物車／銷售／備份封包）；網域型別見 [PosPersistModels]。
- */
+/** v1.3 DataStore persistence；僅保留供 legacy migration 與相容性測試。正式 runtime 使用 [RoomPosPersistence]。 */
 class PosStore(private val context: Context) : PosPersistence {
 
     companion object {
         const val BACKUP_FORMAT_ID = "stallpos_pos_backup"
         /** v1.0.x 匯出格式；還原時仍接受 */
         const val LEGACY_BACKUP_FORMAT_ID = "appforsale_pos_backup"
-        const val BACKUP_SCHEMA_VERSION = 3
+        const val BACKUP_SCHEMA_VERSION = 4
     }
 
     private val PRODUCTS_JSON = stringPreferencesKey("products_json")

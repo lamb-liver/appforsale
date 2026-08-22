@@ -10,9 +10,9 @@ interface PosPersistence {
     val bundleCategoriesFlow: Flow<List<BundleCategory>>
     val bundlesFlow: Flow<List<Bundle>>
     val cartFlow: Flow<PosCart>
-    /** Legacy cached aggregate；reporting 必須由 Sales + Reversals 派生。 */
+    /** 由 active Sales 派生的有效營收。 */
     val totalSalesFlow: Flow<Long>
-    /** Legacy cached aggregate；reporting 必須由 Sales + Reversals 派生。 */
+    /** 由 active Sales 派生的有效筆數。 */
     val txCountFlow: Flow<Long>
     val salesLogFlow: Flow<List<SaleRecord>>
     val reversalLogFlow: Flow<List<SaleReversal>>
@@ -35,9 +35,9 @@ data class PosPersistSnapshot(
     val bundleCategories: List<BundleCategory> = emptyList(),
     val bundles: List<Bundle> = emptyList(),
     val cart: PosCart = PosCart(),
-    /** Legacy cached aggregate；不是 reporting source of truth。 */
+    /** 由 active Sales 派生的有效營收。 */
     val totalSales: Long = 0L,
-    /** Legacy cached aggregate；不是 reporting source of truth。 */
+    /** 由 active Sales 派生的有效筆數。 */
     val txCount: Long = 0L,
     val salesLog: List<SaleRecord> = emptyList(),
     val reversalLog: List<SaleReversal> = emptyList(),

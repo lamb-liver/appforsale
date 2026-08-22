@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.room3)
+    alias(libs.plugins.ksp)
 }
 
 val appVersionName: String = rootProject.file("VERSION")
@@ -14,6 +16,10 @@ composeCompiler {
     reportsDestination.set(layout.buildDirectory.dir("compose_reports"))
 }
 
+room3 {
+    schemaDirectory("$projectDir/schemas")
+}
+
 android {
     namespace = "com.lambliver.stallpos"
     compileSdk = 35
@@ -22,7 +28,7 @@ android {
         applicationId = "com.lambliver.stallpos"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
+        versionCode = 5
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -74,7 +80,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.room3.runtime)
+    implementation(libs.androidx.sqlite.bundled)
     implementation(libs.kotlinx.collections.immutable)
+    ksp(libs.androidx.room3.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)

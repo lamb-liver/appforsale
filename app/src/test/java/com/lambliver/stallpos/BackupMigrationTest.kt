@@ -28,9 +28,9 @@ class BackupMigrationTest {
         """{"format":"${PosStore.BACKUP_FORMAT_ID}","schemaVersion":$schema,"payload":$payload}"""
 
     @Test
-    fun schema1Backup_migratesThroughV2ToV3() {
+    fun schema1Backup_migratesThroughV2ToV4() {
         val out = parseValidatedBackupPayload(envelope(1))
-        assertEquals(3, out.getInt("payloadSchema"))
+        assertEquals(4, out.getInt("payloadSchema"))
         assertEquals("[]", out.getString("reversal_log_json"))
         assertTrue(decodeSalesRecordsJson(out.getString("sales_log_json")).single().id.isNotBlank())
         assertTrue(decodeLastCheckoutJson(out.getString("last_checkout_json"))!!.saleId.isNotBlank())
@@ -42,18 +42,36 @@ class BackupMigrationTest {
         val first = parseValidatedBackupPayload(envelope(2, source))
         val second = parseValidatedBackupPayload(envelope(2, JSONObject(source.toString())))
 
-        assertEquals(3, first.getInt("payloadSchema"))
+        assertEquals(4, first.getInt("payloadSchema"))
         assertEquals(first.toString(), second.toString())
         val saleId = decodeSalesRecordsJson(first.getString("sales_log_json")).single().id
         assertEquals(saleId, decodeLastCheckoutJson(first.getString("last_checkout_json"))!!.saleId)
     }
 
     @Test
-    fun schema3Backup_isIdentity() {
+    fun schema3Backup_backfillsDisplayName() {
+        val product = """[{"id":"p1","name":"徽章","price":100,"categoryId":""}]"""
+        val saleWithLine = legacySale.replace(
+            "\"lines\":[]",
+            "\"lines\":[{\"kind\":\"product\",\"productId\":\"p1\",\"qty\":1,\"unitPrice\":100,\"lineSubtotal\":100}]",
+        )
         val source = payload()
             .put("payloadSchema", 3)
+            .put("products_json", product)
+            .put("sales_log_json", "[$saleWithLine]")
             .put("reversal_log_json", "[]")
-        val same = BackupMigration.migratePayloadToCurrent(3, source)
+        val migrated = BackupMigration.migratePayloadToCurrent(3, source)
+        assertEquals(4, migrated.getInt("payloadSchema"))
+        assertEquals("徽章", decodeSalesRecordsJson(migrated.getString("sales_log_json"))
+            .single().checkoutLines.single().let { it as com.lambliver.stallpos.domain.SaleCheckoutLine.Product }.displayName)
+    }
+
+    @Test
+    fun schema4Backup_isIdentity() {
+        val source = payload()
+            .put("payloadSchema", 4)
+            .put("reversal_log_json", "[]")
+        val same = BackupMigration.migratePayloadToCurrent(4, source)
         assertEquals(source.toString(), same.toString())
     }
 

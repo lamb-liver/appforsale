@@ -10,13 +10,13 @@ import org.json.JSONObject
  * | 欄位 | 層級 | 職責 |
  * |------|------|------|
  * | **`schemaVersion`** | **Envelope**（備份檔根物件，與 `format` 並列） | 控制 [parseBackupEnvelope] 能否接受檔案、以及要跑哪些 **步驟遷移**（`migrateV1ToV2` …）。由 [PosStore.BACKUP_SCHEMA_VERSION] 定義 App 支援上限。 |
- * | **`payloadSchema`** | **Payload**（`payload` 物件內） | 標記業務資料束形狀；供 payload 內欄位遷移使用。現行 v3 與 envelope 3 對齊。 |
+ * | **`payloadSchema`** | **Payload**（`payload` 物件內） | 標記業務資料束形狀；供 payload 內欄位遷移使用。現行 v4 與 envelope 4 對齊。 |
  *
  * 匯出時：外層 `schemaVersion` = [PosStore.BACKUP_SCHEMA_VERSION]，payload 內寫入 `payloadSchema`（同值）。
  *
  * ## 冪等性
  *
- * v1→v2 只補版本標記；v2→v3 補交易 ID、LastCheckout 關聯與 Reversal log，重複輸入不改變既有 ID。
+ * v1→v2 只補版本標記；v2→v3 補 identity 與 Reversal log；v3→v4 補可證明的名稱快照。
  * Envelope `schemaVersion` 已為目前版本時，[migratePayloadToCurrent] 不進入遷移迴圈（identity）。
  *
  * 新增版本：遞增 [PosStore.BACKUP_SCHEMA_VERSION]、實作 `migrateV{n}ToV{n+1}`、補 [BackupMigrationTest] fixture。
@@ -30,6 +30,7 @@ internal object BackupMigration {
             current = when (schema) {
                 1 -> migrateV1ToV2(current)
                 2 -> migrateV2ToV3(current)
+                3 -> migrateV3ToV4(current)
                 else -> throw IllegalArgumentException(
                     "備份版本 $schema 無法遷移至 ${PosStore.BACKUP_SCHEMA_VERSION}",
                 )
@@ -63,5 +64,16 @@ internal object BackupMigration {
             }
             if (!has("reversal_log_json")) put("reversal_log_json", "[]")
             put("payloadSchema", 3)
+        }
+
+    /** v3→v4：為既有 checkout lines 補可證明的交易當下名稱快照。 */
+    private fun migrateV3ToV4(payload: JSONObject): JSONObject =
+        payload.apply {
+            backfillSaleLineDisplayNames(
+                salesJson = optString("sales_log_json", ""),
+                productsJson = optString("products_json", ""),
+                bundlesJson = optString("bundles_json", ""),
+            ).onSuccess { put("sales_log_json", it) }
+            put("payloadSchema", 4)
         }
 }

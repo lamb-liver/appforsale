@@ -12,7 +12,7 @@ import com.lambliver.stallpos.data.PosBackupSafAdapter
 import com.lambliver.stallpos.data.PosCsvExportAdapter
 import com.lambliver.stallpos.data.PosPersistSnapshot
 import com.lambliver.stallpos.data.PosPersistence
-import com.lambliver.stallpos.data.PosStore
+import com.lambliver.stallpos.data.RoomPosPersistence
 import com.lambliver.stallpos.domain.*
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class PosViewModel @JvmOverloads constructor(
     app: Application,
-    posStore: PosPersistence = PosStore(app),
+    posStore: PosPersistence = RoomPosPersistence(app),
 ) : AndroidViewModel(app) {
 
     internal val posStore: PosPersistence = posStore

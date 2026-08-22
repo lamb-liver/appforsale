@@ -2,6 +2,27 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [1.4.0] - 2026-08-22
+
+### Added
+
+- Room 3 DB v1：目錄、購物車、Sales、Sale lines、庫存扣除、Reversals 與 LastCheckout 關聯表
+- SQLite 2.7.0 `BundledSQLiteDriver`、KSP schema generation 與 committed Room schema JSON
+- 交易當下商品／套組名稱快照；backup schema 1／2／3→4 migration
+
+### Changed
+
+- `PosViewModel` 正式 persistence 改為 `RoomPosPersistence`；Compose、介面文案與操作路徑不變
+- Checkout、Undo、Catalog 同步與 backup restore 改為 Room atomic transaction
+- Dashboard aggregate 由 SQL active Sales 派生，與 Kotlin `activeSales()` 共用 parity 測試
+- v1.2／v1.3 DataStore business JSON 只在首次啟動匯入；成功後凍結、禁止 dual-write
+- Backup restore 在取代現有資料前驗證 schema、必填欄位、唯一 ID 與 Reversal 關聯；不合法檔案保留原 DB
+
+### Documentation
+
+- [Room DB v1 schema](room-schema.md)
+- [ADR-0005：Room 本機關聯式持久化](adr/0005-room-local-relational-persistence.md)
+
 ## [1.3.0] - 2026-08-22
 
 ### Added
@@ -64,7 +85,8 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
-[1.3.0]: https://github.com/lamb-liver/appforsale/compare/v1.2.0...HEAD
+[1.4.0]: https://github.com/lamb-liver/appforsale/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.3.0
 [1.2.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.2.0
 [1.1.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.0.0

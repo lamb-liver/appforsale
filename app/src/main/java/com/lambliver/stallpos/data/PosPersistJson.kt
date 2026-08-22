@@ -85,6 +85,7 @@ internal fun decodeCheckoutLinesPersist(arr: JSONArray?): List<SaleCheckoutLine>
                     qty = o.getInt("qty").coerceAtLeast(0),
                     unitPrice = o.optLong("unitPrice", 0L).coerceAtLeast(0L),
                     lineSubtotal = o.optLong("lineSubtotal", 0L).coerceAtLeast(0L),
+                    displayName = o.optString("displayName", "").trim().takeIf { it.isNotEmpty() },
                 )
             else ->
                 SaleCheckoutLine.Product(
@@ -92,6 +93,7 @@ internal fun decodeCheckoutLinesPersist(arr: JSONArray?): List<SaleCheckoutLine>
                     qty = o.getInt("qty").coerceAtLeast(0),
                     unitPrice = o.optLong("unitPrice", 0L).coerceAtLeast(0L),
                     lineSubtotal = o.optLong("lineSubtotal", 0L).coerceAtLeast(0L),
+                    displayName = o.optString("displayName", "").trim().takeIf { it.isNotEmpty() },
                 )
         }
     }
@@ -109,6 +111,7 @@ internal fun encodeCheckoutLinesPersist(lines: List<SaleCheckoutLine>): JSONArra
                             .put("qty", line.qty)
                             .put("unitPrice", line.unitPrice)
                             .put("lineSubtotal", line.lineSubtotal)
+                            .apply { line.displayName?.let { put("displayName", it) } }
                     is SaleCheckoutLine.Bundle ->
                         JSONObject()
                             .put("kind", "bundle")
@@ -116,6 +119,7 @@ internal fun encodeCheckoutLinesPersist(lines: List<SaleCheckoutLine>): JSONArra
                             .put("qty", line.qty)
                             .put("unitPrice", line.unitPrice)
                             .put("lineSubtotal", line.lineSubtotal)
+                            .apply { line.displayName?.let { put("displayName", it) } }
                 },
             )
         }
@@ -310,4 +314,30 @@ internal fun parseValidatedBackupPayload(jsonText: String): JSONObject {
     val envelope = parseBackupEnvelope(jsonText)
     val payload = JSONObject(envelope.payloadJson)
     return BackupMigration.migratePayloadToCurrent(envelope.schemaVersion, payload)
+}
+
+/** Backup schema 3→4：只回填可由同一 payload Catalog 證明的交易名稱。 */
+internal fun backfillSaleLineDisplayNames(
+    salesJson: String,
+    productsJson: String,
+    bundlesJson: String,
+): Result<String> = decodeSalesRecordsJsonResult(salesJson).map { sales ->
+    val productNames = decodeProducts(productsJson).associate { it.id to it.name }
+    val bundleNames = decodeBundles(bundlesJson).associate { it.id to it.name }
+    encodeSalesRecordsJson(
+        sales.map { sale ->
+            sale.copy(
+                checkoutLines = sale.checkoutLines.map { line ->
+                    when (line) {
+                        is SaleCheckoutLine.Product ->
+                            if (!line.displayName.isNullOrBlank()) line
+                            else line.copy(displayName = productNames[line.productId])
+                        is SaleCheckoutLine.Bundle ->
+                            if (!line.displayName.isNullOrBlank()) line
+                            else line.copy(displayName = bundleNames[line.bundleId])
+                    }
+                },
+            )
+        },
+    )
 }

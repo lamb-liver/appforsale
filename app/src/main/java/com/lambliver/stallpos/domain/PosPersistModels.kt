@@ -70,6 +70,8 @@ sealed class SaleCheckoutLine {
         override val qty: Int,
         override val unitPrice: Long,
         override val lineSubtotal: Long,
+        /** 交易當下名稱；legacy 無法可靠回填時為 null。 */
+        val displayName: String? = null,
     ) : SaleCheckoutLine()
 
     data class Bundle(
@@ -77,6 +79,8 @@ sealed class SaleCheckoutLine {
         override val qty: Int,
         override val unitPrice: Long,
         override val lineSubtotal: Long,
+        /** 交易當下名稱；legacy 無法可靠回填時為 null。 */
+        val displayName: String? = null,
     ) : SaleCheckoutLine()
 }
 

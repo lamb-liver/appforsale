@@ -149,6 +149,7 @@ internal fun posBuildCheckoutLines(
                 qty = qty,
                 unitPrice = p.price,
                 lineSubtotal = (p.price * qty.toLong()).coerceAtLeast(0L),
+                displayName = p.name,
             ),
         )
     }
@@ -161,6 +162,7 @@ internal fun posBuildCheckoutLines(
                 qty = qty,
                 unitPrice = b.price,
                 lineSubtotal = (b.price * qty.toLong()).coerceAtLeast(0L),
+                displayName = b.name,
             ),
         )
     }

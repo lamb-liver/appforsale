@@ -1,6 +1,6 @@
 # 小攤位 · 市集 POS
 
-**版本：v1.3.0**（`VERSION` · `versionName`）
+**版本：v1.4.0**（`VERSION` · `versionName`）
 
 **離線可用的 Android 結帳 app**：快選商品／套組、現場收款、紀錄今日營收；刻意不做進銷存或複雜後台。
 
@@ -19,7 +19,7 @@
 | 今日儀表 | 當日營收與筆數摘要 |
 | 復原 | 結帳成功後可復原上一筆；庫存、購物車與營收立即還原 |
 | CSV 匯出 | 僅列有效交易的易讀報表；頂列檔案圖示 → SAF 選路徑存檔 → 系統分享選單 |
-| JSON 備份／還原 | 設定選單完整備份與還原（`PosStore` 全狀態） |
+| JSON 備份／還原 | 設定選單完整備份與還原（Room business data JSON exchange format） |
 | 贊助開發者 | 自願支持（30／99／150 元）；設定選單 → 綠界付款頁（外部瀏覽器），與攤位結帳無關 |
 
 ---
@@ -28,10 +28,10 @@
 
 | Kotlin | Jetpack Compose · Material 3 | MVVM（`ViewModel` + `StateFlow`） |
 |--------|------------------------------|----------------------------------|
-| Jetpack DataStore（Preferences + JSON） | Kotlin Coroutines · Flow | Lifecycle（`ProcessLifecycleOwner`、Compose lifecycle） |
-| 綠界贊助（外部瀏覽器） | kotlinx.collections.immutable | 無 Hilt／Room |
+| Room 3.0.1 + SQLite 2.7.0 `BundledSQLiteDriver` | Kotlin Coroutines · Flow | Lifecycle（`ProcessLifecycleOwner`、Compose lifecycle） |
+| DataStore（UI preferences + frozen legacy JSON） | kotlinx.collections.immutable | 無 Hilt／後端 |
 
-> 未使用 **Hilt／Room**：持久化與交易語意見 [ADR-0001](docs/adr/0001-pos-state-in-datastore-json.md)。
+> Room 選型與 legacy import 語意見 [ADR-0005](docs/adr/0005-room-local-relational-persistence.md)；DB v1 表格見 [room-schema.md](docs/room-schema.md)。
 
 ---
 
@@ -41,7 +41,7 @@
 stallpos/
 ├── app/src/main/java/com/lambliver/stallpos/
 │   ├── domain/          # 協調器（目錄／購物車／結帳）、對帳、網域模型、UI 契約
-│   ├── data/            # PosPersistence、PosStore、JSON codec、CSV／備份 I/O、AppUiPreferences
+│   ├── data/            # PosPersistence、Room DB/DAO、legacy JSON migration、CSV／備份 I/O
 │   └── ui/              # Activity、Compose、ViewModel、theme
 │       ├── feedback/    # PosFeedbackManager（震動 + SoundPool 音效）
 │       ├── sponsor/     # SponsorLinks、贊助 Sheet、開啟綠界付款頁
@@ -67,9 +67,9 @@ stallpos/
 |----|------|
 | **ui** | `PosViewModel` 訂閱 `PosPersistence.snapshot`；購物車／目錄／結帳委派各 Coordinator；`PosAppShell` 處理 SAF 匯出與 `csvShareUriFlow` 分享；`PosFeedbackManager` 統一震動／音效；贊助在 `ui/sponsor` |
 | **domain** | 純規則與協調結果（`CartResult`、`CatalogPersistPlan`、`CheckoutWriteRequest`）；`PosUiState` 衍生欄位（`cartItemCount`、`checkoutSurfaceReceivablePreview`） |
-| **data** | `PosPersistence` 介面 + `PosStore`（DataStore）；`AppUiPreferences`（`haptic_enabled`／`sound_enabled`）；`applyCatalog` 原子寫入；`checkout` 為 internal extension |
+| **data** | `PosPersistence` 介面 + `RoomPosPersistence`；Room transaction 原子處理 catalog／checkout／undo／restore；DataStore 僅保留 UI preferences 與凍結 legacy JSON |
 
-建議閱讀順序：**`README` → `docs/CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCartCoordinator.kt` → `domain/PosCatalogCoordinator.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/PosStore.kt`**。
+建議閱讀順序：**`README` → `docs/CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/RoomPosPersistence.kt` → `docs/room-schema.md`**。
 
 ---
 
@@ -85,7 +85,7 @@ stallpos/
 | `PosCartCoordinatorTest` | 購物車加減品、庫存上限、clamp |
 | `PosViewModelCheckoutTest` | VM 結帳成功／失敗還原／對帳拒絕（Robolectric + [FakePosPersistence]） |
 | `PosUndoCoordinatorTest` | append-only 復原規則、孤兒／重複拒絕、庫存還原 fallback |
-| `BackupMigrationTest` | 備份 schema 1／2→3、stable ID、LastCheckout 配對與冪等性 |
+| `BackupMigrationTest` | 備份 schema 1／2／3→4、stable ID、LastCheckout 配對、名稱快照與冪等性 |
 | `PosBackupPayloadTest` | 備份 envelope `parseBackupEnvelope`（純 JVM） |
 | `PosFeedbackManagerTest` | 音效播放條件（`shouldPlaySound`：NORMAL / VIBRATE / SILENT） |
 | `CheckoutBottomSheetComposeTest` | 結帳 sheet 互動（Robolectric Compose） |
@@ -99,11 +99,11 @@ stallpos/
 | 欄位 | 層級 | 職責 |
 |------|------|------|
 | **`schemaVersion`** | Envelope（備份檔根物件） | `parseBackupEnvelope` 驗證與遷移步驟編排（見 `BackupMigration`） |
-| **`payloadSchema`** | `payload` 物件內 | 業務資料束形狀；v3 新增 Sale ID、`reversal_log_json` 與 LastCheckout 關聯 |
+| **`payloadSchema`** | `payload` 物件內 | 業務資料束形狀；v4 新增交易當下商品／套組名稱快照 |
 
-現行皆為 **3**。舊 **schemaVersion: 1／2** 備份還原時由 `parseValidatedBackupPayload` 依序遷移；v2→v3 會產生 deterministic legacy Sale ID、只在唯一匹配時補 `LastCheckout.saleId`，並初始化空 Reversal log。語意詳見 `docs/CONTEXT.md` 與 `data/BackupMigration.kt`。
+現行皆為 **4**。舊 **schemaVersion: 1／2／3** 備份會依序遷移；v2→v3 補 stable identity 與 Reversal log，v3→v4 僅以同一備份的 Catalog 回填可證明的交易名稱，無法回填時保留 `null`。
 
-儀表測試（需模擬器／裝置）：`PosStoreInstrumentedTest`（DataStore 結帳／復原端到端）。
+儀表測試（需模擬器／裝置）：`PosStoreInstrumentedTest`（Room 結帳／復原、rollback、關聯與大量歷史）。
 
 ---
 
@@ -113,6 +113,7 @@ stallpos/
 - [ADR-0002 — 結帳確認點對帳](docs/adr/0002-checkout-reconcile-at-confirm.md)
 - [ADR-0003 — 購物車記憶體 + debounce 寫碟](docs/adr/0003-cart-memory-with-debounced-disk-flush.md)
 - [ADR-0004 — Append-only Sales 與 Reversals](docs/adr/0004-append-only-sales-and-reversals.md)
+- [ADR-0005 — Room 本機關聯式持久化](docs/adr/0005-room-local-relational-persistence.md)
 
 結帳金額語意：`docs/phase-a-checkout-money-flow.md`。
 

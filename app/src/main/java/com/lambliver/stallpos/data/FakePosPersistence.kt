@@ -11,7 +11,7 @@ import java.util.UUID
 
 /**
  * 記憶體版 [PosPersistence]，供單元測試 mock 單一 seam。
- * 正式 UI 路徑請使用 [PosStore]；Lint `VisibleForTests` 會攔截 main 誤用。
+ * 正式 UI 路徑請使用 [RoomPosPersistence]；Lint `VisibleForTests` 會攔截 main 誤用。
  */
 @VisibleForTesting
 internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapshot()) : PosPersistence {
@@ -121,6 +121,7 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
 
     override suspend fun exportFullBackupJson(): String {
         val cur = state.value
+        val effectiveSales = activeSales(cur.salesLog, cur.reversalLog)
         val payload = JSONObject().apply {
             put("payloadSchema", PosStore.BACKUP_SCHEMA_VERSION)
             put("products_json", encodeProducts(cur.products))
@@ -131,8 +132,8 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
             put("sales_log_json", encodeSalesRecordsJson(cur.salesLog))
             put("reversal_log_json", encodeSaleReversalsJson(cur.reversalLog))
             put("last_checkout_json", cur.lastCheckout?.let { encodeLastCheckoutJson(it) } ?: "")
-            put("total_sales", cur.totalSales)
-            put("tx_count", cur.txCount)
+            put("total_sales", effectiveSales.sumOf { it.total + it.tipAmount })
+            put("tx_count", effectiveSales.size.toLong())
         }
         return JSONObject().apply {
             put("format", PosStore.BACKUP_FORMAT_ID)
@@ -145,6 +146,8 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
     override suspend fun restoreFullBackupJson(jsonText: String): Result<Unit> = runCatching {
         val payload = parseValidatedBackupPayload(jsonText)
         val sales = decodeSalesRecordsJson(payload.optString("sales_log_json", ""))
+        val reversals = decodeSaleReversalsJson(payload.optString("reversal_log_json", "[]"))
+        val effectiveSales = activeSales(sales, reversals)
         state.value = PosPersistSnapshot(
             products = decodeProducts(payload.optString("products_json", "")),
             categories = decodeCategories(payload.optString("categories_json", "")),
@@ -152,13 +155,13 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
             bundles = decodeBundles(payload.optString("bundles_json", "")),
             cart = decodePosCartJson(payload.optString("cart_json", "")),
             salesLog = sales,
-            reversalLog = decodeSaleReversalsJson(payload.optString("reversal_log_json", "[]")),
+            reversalLog = reversals,
             lastCheckout = linkLastCheckoutToSales(
                 decodeLastCheckoutJson(payload.optString("last_checkout_json", "")),
                 sales,
             ),
-            totalSales = payload.optLong("total_sales", 0L).coerceAtLeast(0L),
-            txCount = payload.optLong("tx_count", 0L).coerceAtLeast(0L),
+            totalSales = effectiveSales.sumOf { it.total + it.tipAmount },
+            txCount = effectiveSales.size.toLong(),
         )
     }
 }

@@ -105,9 +105,9 @@ internal fun formatSaleRecordDetailsForCsv(r: SaleRecord, pm: Map<String, Produc
             r.checkoutLines.joinToString(";") { line ->
                 when (line) {
                     is SaleCheckoutLine.Product ->
-                        "${pm[line.productId]?.name ?: "已刪除商品"}x${line.qty}"
+                        "${line.displayName ?: pm[line.productId]?.name ?: "已刪除商品"}x${line.qty}"
                     is SaleCheckoutLine.Bundle ->
-                        "${bm[line.bundleId]?.name ?: "套組"}x${line.qty}"
+                        "${line.displayName ?: bm[line.bundleId]?.name ?: "套組"}x${line.qty}"
                 }
             },
         )

@@ -1,6 +1,6 @@
 # Stall POS · Market Checkout
 
-**Version: v1.3.0** (`VERSION` · `versionName`)
+**Version: v1.4.0** (`VERSION` · `versionName`)
 
 An **offline-first Android checkout app** for market stalls and small booths: quick-tap products and bundles, take payment on site, and track today’s revenue—without inventory ERP or a heavy back office.
 
@@ -19,7 +19,7 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 | Today dashboard | Same-day revenue and transaction count |
 | Undo | Undo the last checkout and immediately restore stock, cart, and revenue |
 | CSV export | A readable report of active transactions only, saved through SAF and shared with the system sheet |
-| JSON backup / restore | Full `PosStore` state from the settings menu |
+| JSON backup / restore | Full Room business data in the existing JSON exchange format |
 | Sponsor developer | Voluntary support (NT$30 / 99 / 150); settings → ECPay in external browser; not stall checkout |
 
 ---
@@ -28,10 +28,10 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 
 | Kotlin | Jetpack Compose · Material 3 | MVVM (`ViewModel` + `StateFlow`) |
 |--------|------------------------------|----------------------------------|
-| Jetpack DataStore (Preferences + JSON) | Kotlin Coroutines · Flow | Lifecycle (`ProcessLifecycleOwner`, Compose lifecycle) |
-| ECPay sponsor (external browser) | kotlinx.collections.immutable | No Hilt / Room |
+| Room 3.0.1 + SQLite 2.7.0 `BundledSQLiteDriver` | Kotlin Coroutines · Flow | Lifecycle (`ProcessLifecycleOwner`, Compose lifecycle) |
+| DataStore (UI preferences + frozen legacy JSON) | kotlinx.collections.immutable | No Hilt / backend |
 
-> **No Hilt / Room**: persistence and checkout semantics are documented in [ADR-0001](adr/0001-pos-state-in-datastore-json.md).
+> See [ADR-0005](adr/0005-room-local-relational-persistence.md) for Room and legacy import, and [room-schema.md](room-schema.md) for DB v1.
 
 ---
 
@@ -41,7 +41,7 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 stallpos/
 ├── app/src/main/java/com/lambliver/stallpos/
 │   ├── domain/          # Coordinators (catalog / cart / checkout), pricing rules, models, UI contract
-│   ├── data/            # PosPersistence, PosStore, JSON codecs, CSV / backup I/O, AppUiPreferences
+│   ├── data/            # PosPersistence, Room DB/DAO, legacy JSON migration, CSV / backup I/O
 │   └── ui/              # Activity, Compose, ViewModel, theme
 │       ├── feedback/    # PosFeedbackManager (haptics + SoundPool)
 │       ├── sponsor/     # SponsorLinks, sponsor sheet, open ECPay payment page
@@ -67,7 +67,7 @@ stallpos/
 |-------|----------------|
 | **ui** | `PosViewModel` observes `PosPersistence.snapshot`; cart / catalog / checkout delegate to coordinators; `PosAppShell` handles SAF export and `csvShareUriFlow` sharing; `PosFeedbackManager` for haptics / sound; sponsor under `ui/sponsor` |
 | **domain** | Pure rules and coordinator results (`CartResult`, `CatalogPersistPlan`, `CheckoutWriteRequest`); `PosUiState` derived fields (`cartItemCount`, `checkoutSurfaceReceivablePreview`) |
-| **data** | `PosPersistence` interface + `PosStore` (DataStore); `AppUiPreferences` (`haptic_enabled` / `sound_enabled`); atomic catalog writes via `applyCatalog`; `checkout` as an internal extension |
+| **data** | `PosPersistence` + `RoomPosPersistence`; Room transactions own catalog / checkout / undo / restore; DataStore keeps UI preferences and frozen legacy JSON only |
 
 Suggested reading order: **`README` → `CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCartCoordinator.kt` → `domain/PosCatalogCoordinator.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/PosStore.kt`**.
 
@@ -85,7 +85,7 @@ Suggested reading order: **`README` → `CONTEXT.md` → `ui/PosViewModel.kt` �
 | `PosCartCoordinatorTest` | Cart add/remove, stock caps, clamp |
 | `PosViewModelCheckoutTest` | VM checkout success / failure restore / reconcile reject (Robolectric + `FakePosPersistence`) |
 | `PosUndoCoordinatorTest` | Append-only undo, orphan / duplicate rejection, stock restore fallback |
-| `BackupMigrationTest` | Backup schema 1 / 2→3, stable IDs, LastCheckout linking, idempotency |
+| `BackupMigrationTest` | Backup schema 1 / 2 / 3→4, stable IDs, LastCheckout linking, name snapshots, idempotency |
 | `PosBackupPayloadTest` | Backup envelope `parseBackupEnvelope` (plain JVM) |
 | `PosFeedbackManagerTest` | Sound gating (`shouldPlaySound`: NORMAL / VIBRATE / SILENT) |
 | `CheckoutBottomSheetComposeTest` | Checkout sheet interactions (Robolectric Compose) |
@@ -99,11 +99,11 @@ Coordinator and pricing unit tests can use **`FakePosPersistence`**—no device 
 | Field | Layer | Role |
 |-------|-------|------|
 | **`schemaVersion`** | Envelope (backup file root) | `parseBackupEnvelope` validation and migration steps (`BackupMigration`) |
-| **`payloadSchema`** | Inside `payload` | Business blob shape; v3 adds Sale IDs, `reversal_log_json`, and LastCheckout linkage |
+| **`payloadSchema`** | Inside `payload` | Business blob shape; v4 adds checkout-time product / bundle display-name snapshots |
 
-Both are **3** today. Old **schemaVersion: 1 / 2** files migrate stepwise in `parseValidatedBackupPayload`. The v2→v3 step generates deterministic legacy Sale IDs, links `LastCheckout.saleId` only on a unique match, and initializes an empty Reversal log. See `CONTEXT.md` and `data/BackupMigration.kt`.
+Both are **4** today. Old **schemaVersion: 1 / 2 / 3** files migrate stepwise. v2→v3 adds stable identity and Reversals; v3→v4 backfills only display names provable from the same backup Catalog.
 
-Instrumented (device/emulator): `PosStoreInstrumentedTest` (DataStore checkout/undo E2E).
+Instrumented (device/emulator): `PosStoreInstrumentedTest` (Room checkout/undo, rollback, relations, and large history).
 
 ---
 
@@ -113,6 +113,7 @@ Instrumented (device/emulator): `PosStoreInstrumentedTest` (DataStore checkout/u
 - [ADR-0002 — Reconcile amounts at checkout confirm](adr/0002-checkout-reconcile-at-confirm.md)
 - [ADR-0003 — In-memory cart with debounced disk flush](adr/0003-cart-memory-with-debounced-disk-flush.md)
 - [ADR-0004 — Append-only Sales and Reversals](adr/0004-append-only-sales-and-reversals.md)
+- [ADR-0005 — Room local relational persistence](adr/0005-room-local-relational-persistence.md)
 
 Checkout money semantics: `phase-a-checkout-money-flow.md`.
 

@@ -128,4 +128,27 @@ class PosCsvExportTest {
         assertFalse(csv.contains("reversal-1"))
         assertFalse(csv.contains("Reversal"))
     }
+
+    @Test
+    fun csv_prefersCheckoutNameSnapshot_overRenamedCatalog() {
+        val sale = SaleRecord(
+            id = "sale-name",
+            tsMillis = 1L,
+            dateKey = "2026-05-13",
+            subtotal = 100L,
+            discount = 0L,
+            total = 100L,
+            cartSnapshot = mapOf("p" to 1),
+            checkoutLines = listOf(SaleCheckoutLine.Product("p", 1, 100L, 100L, "舊名稱")),
+        )
+        val csv = buildPosSalesCsv(
+            "2026-05-13",
+            listOf(sale),
+            emptyList(),
+            listOf(Product("p", "新名稱", 100L)),
+            emptyList(),
+        )
+        assertTrue(csv.contains("舊名稱x1"))
+        assertFalse(csv.contains("新名稱x1"))
+    }
 }

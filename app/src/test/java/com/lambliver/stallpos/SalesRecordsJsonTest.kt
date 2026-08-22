@@ -65,7 +65,7 @@ class SalesRecordsJsonTest {
             bundleCartSnapshot = mapOf("bb" to 2),
             paymentMethod = PaymentMethod.DIGITAL,
             tipAmount = 10L,
-            checkoutLines = listOf(SaleCheckoutLine.Product("p1", 1, 100L, 100L)),
+            checkoutLines = listOf(SaleCheckoutLine.Product("p1", 1, 100L, 100L, "交易當下名稱")),
             stockDeductions = mapOf("p1" to 3L),
         )
         val minimal = SaleRecord(

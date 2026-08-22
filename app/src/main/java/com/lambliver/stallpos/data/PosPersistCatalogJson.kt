@@ -104,5 +104,11 @@ internal fun buildProductLinesFromCart(cart: Map<String, Int>, products: List<Pr
         val q = qty.coerceAtLeast(0)
         if (q == 0) return@mapNotNull null
         val sub = (p.price * q.toLong()).coerceAtLeast(0L)
-        SaleCheckoutLine.Product(productId = p.id, qty = q, unitPrice = p.price, lineSubtotal = sub)
+        SaleCheckoutLine.Product(
+            productId = p.id,
+            qty = q,
+            unitPrice = p.price,
+            lineSubtotal = sub,
+            displayName = p.name,
+        )
     }

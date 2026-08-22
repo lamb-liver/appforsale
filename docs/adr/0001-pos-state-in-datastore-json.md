@@ -1,7 +1,7 @@
 # ADR-0001：以 DataStore Preferences＋JSON 束集中承載 POS 狀態
 
 **Date**：2026-05-14  
-**Status**：Accepted
+**Status**：Superseded by [ADR-0005](0005-room-local-relational-persistence.md) in v1.4
 
 ## Context
 

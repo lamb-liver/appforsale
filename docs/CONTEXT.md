@@ -38,7 +38,7 @@
 相對於**購物車**目錄小計的調整項（例如自訂加價、折扣折算後）。最終仍以**應收款**對外。
 
 ### 結帳
-收款動作確認的時間點：驗證金額與庫存、寫入**銷貨紀錄**、更新累計營收與可供復原快照，並視規則清空進行中之**購物車**。為單機上的原子写入語意。
+收款動作確認的時間點：以使用者確認時鎖定的記憶體購物車快照為準，並在同一個 Room write transaction 內讀取最新 Catalog／庫存、寫入**銷貨紀錄**與名稱快照、扣庫存、清除 Room 購物車並更新 LastCheckout。任一步失敗即全部 rollback；不得改讀可能仍在 debounce 的 Room 購物車取代確認快照。
 
 ### 銷貨紀錄（Sale）
 每次**結帳**成功追加的一則不可變紀錄，使用永久 UUID 識別。`SaleRecord.total` 是不含小費的應收款；有效營收需計入 `total + tipAmount`。Sales audit log 不修改、不刪除。
@@ -47,10 +47,13 @@
 復原上一筆結帳時追加的不可變紀錄，使用自己的 UUID 並以 `saleId` 指向原 Sale。復原不移除或改寫 Sale；同一 Sale 最多一筆 Reversal。
 
 ### 報表真相源
-`Sales + Reversals` 是 dashboard、CSV 與 reports 的唯一真相源。`activeSales` 排除已被 Reversal 指向的 Sale；有效筆數為其筆數，有效營收為 `sum(total + tipAmount)`。DataStore 的 `total_sales`／`tx_count` 僅是舊資料與備份相容用的 legacy cached aggregate，不可作為 authoritative reporting source。
+`Sales + Reversals` 是 dashboard、CSV 與 reports 的唯一真相源。`activeSales` 排除已被 Reversal 指向的 Sale；有效筆數為其筆數，有效營收為 `sum(total + tipAmount)`。Room 以 SQL 產生 aggregate，並與 Kotlin 明細結果對帳；舊 DataStore `total_sales`／`tx_count` 僅是 frozen migration artifact。
 
 ### 上一筆結帳（可用於復原）
-僅保存「最近」一次**結帳**之快照，並以 `saleId` 指向原 Sale。復原資格驗證與庫存／購物車／Reversal／legacy cache 寫入必須在同一個 DataStore `edit` 內完成；孤兒或已復原 saleId 一律 no-op。
+Room `last_checkout` 僅保存 slot 1 與 `sale_id`。復原資格驗證、庫存／購物車恢復、Reversal append 與 LastCheckout clear 必須在同一個 write transaction 內完成；孤兒或已復原 saleId 一律 no-op。
+
+### 本機持久化
+Business data 以 Room DB `stallpos.db` version 1 儲存，使用 SQLite 2.7.0 `BundledSQLiteDriver`。`PosPersistence` 仍是 ViewModel 唯一 seam；Compose 不接觸 Entity／DAO。DataStore 只繼續寫 UI preferences，v1.2／v1.3 business JSON 成功匯入後保留原文但永不再讀寫。
 
 ### 營運摘要（今日）
 聚合當日與總和的營運數字，僅為攤販現場自省用，非雲端報表。
@@ -62,9 +65,9 @@
 | 欄位 | 層級 | 職責 |
 |------|------|------|
 | **`schemaVersion`** | Envelope（根物件） | 控制 `parseBackupEnvelope` 是否接受、以及還原時執行哪些 **遷移步驟**（`BackupMigration.migrateV1ToV2` …）。App 支援上限為 `PosStore.BACKUP_SCHEMA_VERSION`。 |
-| **`payloadSchema`** | Payload 內 | 標記業務資料束形狀；v3 新增 Sale ID、`reversal_log_json` 與 `LastCheckout.saleId`。 |
+| **`payloadSchema`** | Payload 內 | 標記業務資料束形狀；v4 新增 checkout line `displayName` 快照。 |
 
-匯出時兩者現行同為 `3`。舊版 envelope `schemaVersion: 1／2` 備份還原時會依序遷移至目前版本。Local DataStore 另以 custom `DataMigration<Preferences>` 完成 transaction schema 2→3；legacy ID 由穩定欄位、排序後 maps 與原始 list index deterministic 產生並立即寫回。LastCheckout 只在唯一匹配時補 `saleId`，否則停用 Undo。
+匯出時兩者現行同為 `4`。舊版 `schemaVersion: 1／2／3` 會依序遷移。Local DataStore 先以 custom `DataMigration<Preferences>` 完成 transaction schema 2→3，再於單一 Room transaction 匯入並寫入 `legacy_import_version=3`；失敗會 rollback 且下次啟動重試。v3→v4 只用同一 backup Catalog 回填可證明的名稱，不猜測遺失資料。
 
 ## Relationships
 

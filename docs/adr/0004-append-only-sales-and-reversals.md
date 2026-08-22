@@ -26,4 +26,4 @@
 
 - Sales 與 Reversals 可被獨立 audit，Undo 不再破壞歷史。
 - 報表不信任可能失真的 legacy cache。
-- DataStore audit JSON 會持續成長；v1.4 視實測規模以 Room 接手。
+- DataStore audit JSON 在 v1.3 會持續成長；v1.4 已由 [ADR-0005](0005-room-local-relational-persistence.md) 改用 Room 接手，本 ADR 的 append-only 語意不變。
