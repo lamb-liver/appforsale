@@ -2,6 +2,26 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [1.5.0] - 2026-08-22
+
+### Added
+
+- 永久 Android release signing、certificate SHA-256 identity 與 fail-closed release build
+- GitHub Actions unit／lint／debug／instrumented gates，以及 signed APK、checksum、draft-to-immutable Release pipeline
+- v1.2／v1.3／v1.4 legacy retirement fixtures 與 malformed Sales／Catalog／Cart 隔離測試
+
+### Changed
+
+- Room 成為不可回退的唯一 runtime business source of truth；DataStore 只持續保存 UI preferences
+- `legacy_import_version=3` 後，legacy business keys 僅可經完整驗證後整批清除；不安全時完整保留
+- 停用 Android Auto Backup 與 D2D；StallPOS JSON 成為唯一正式跨安裝 business-data 搬遷格式
+- 結帳、Undo、Dashboard、CSV、離線與免登入流程維持 v1.4 行為
+
+### Documentation
+
+- [v1.5 upgrade QA](upgrade-qa.md)
+- [ADR-0006：Production signing、資料所有權與 legacy retirement](adr/0006-production-signing-and-data-ownership.md)
+
 ## [1.4.0] - 2026-08-22
 
 ### Added
@@ -85,7 +105,8 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
-[1.4.0]: https://github.com/lamb-liver/appforsale/compare/v1.3.0...v1.4.0
+[1.5.0]: https://github.com/lamb-liver/appforsale/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.4.0
 [1.3.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.3.0
 [1.2.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.2.0
 [1.1.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.1.0

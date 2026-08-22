@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -11,6 +13,25 @@ val appVersionName: String = rootProject.file("VERSION")
     ?.trim()
     ?.removePrefix("v")
     ?: "1.0.0"
+
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use(::load)
+}
+fun signingValue(environmentName: String, localName: String): String? =
+    providers.environmentVariable(environmentName).orNull
+        ?.takeIf { it.isNotBlank() }
+        ?: localProperties.getProperty(localName)?.takeIf { it.isNotBlank() }
+
+val releaseStorePath = signingValue("STALLPOS_RELEASE_STORE_FILE", "storeFile")
+val releaseStorePassword = signingValue("STALLPOS_RELEASE_STORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("STALLPOS_RELEASE_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("STALLPOS_RELEASE_KEY_PASSWORD", "keyPassword")
+val releaseSigningComplete = listOf(
+    releaseStorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
 
 composeCompiler {
     reportsDestination.set(layout.buildDirectory.dir("compose_reports"))
@@ -28,14 +49,26 @@ android {
         applicationId = "com.lambliver.stallpos"
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
+        versionCode = 6
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (releaseSigningComplete) {
+            create("release") {
+                storeFile = rootProject.file(requireNotNull(releaseStorePath))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -64,6 +97,23 @@ android {
         abortOnError = true
         checkTestSources = true
     }
+}
+
+val validateReleaseSigning = tasks.register("validateReleaseSigning") {
+    doLast {
+        project.delete(layout.buildDirectory.dir("outputs/apk/release"))
+        check(releaseSigningComplete) {
+            "Release signing requires keystore, store password, alias, and key password"
+        }
+        val releaseStoreExists = rootProject.file(requireNotNull(releaseStorePath)).isFile
+        check(releaseStoreExists) {
+            "Release keystore does not exist: $releaseStorePath"
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "packageRelease" || name == "bundleRelease") dependsOn(validateReleaseSigning)
 }
 
 dependencies {

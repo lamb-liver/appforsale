@@ -15,7 +15,7 @@ Database: `stallpos.db` · version: `1` · exported schema: `app/schemas/com.lam
 | `sale_stock_deductions` | (`sale_id`, `product_id`) | Undo 所需的實際扣庫量 |
 | `reversals` | UUID `id`, unique `sale_id`, `audit_order` | Append-only Undo audit |
 | `last_checkout` | fixed `slot = 1`, unique `sale_id` | 目前可復原交易 |
-| `app_meta` | `key` | Legacy import marker |
+| `app_meta` | `key` | Legacy import marker 與 post-migration cleanup state；不承載 business records |
 
 ## Invariants
 

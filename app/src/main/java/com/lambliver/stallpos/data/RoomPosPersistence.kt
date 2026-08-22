@@ -1,7 +1,7 @@
 package com.lambliver.stallpos.data
 
 import android.content.Context
-import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.edit
 import androidx.room3.withReadTransaction
 import androidx.room3.withWriteTransaction
 import com.lambliver.stallpos.domain.*
@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.util.UUID
 
 /** Room 3 runtime persistence；DataStore 只作一次性 legacy import 與 UI preferences。 */
@@ -184,24 +185,53 @@ internal class RoomPosPersistence(
     }
 
     private suspend fun ensureLegacyImported() {
-        if (dao.metaValue(LEGACY_IMPORT_VERSION_KEY) == LEGACY_IMPORT_VERSION) return
+        val importComplete = dao.metaValue(LEGACY_IMPORT_VERSION_KEY) == LEGACY_IMPORT_VERSION
+        val cleanupComplete = dao.metaValue(LEGACY_CLEANUP_STATE_KEY) in LEGACY_CLEANUP_FINAL_STATES
+        if (importComplete && cleanupComplete) return
         // ponytail: process-local lock is sufficient for this single-process app; add cross-process coordination only if the app gains another process.
         legacyImportMutex.withLock {
-            if (dao.metaValue(LEGACY_IMPORT_VERSION_KEY) == LEGACY_IMPORT_VERSION) return
-            val legacy = readLegacySnapshot()
-            database.withWriteTransaction {
-                if (dao.metaValue(LEGACY_IMPORT_VERSION_KEY) == LEGACY_IMPORT_VERSION) return@withWriteTransaction
-                replaceBusinessData(legacy)
-                dao.putMeta(AppMetaEntity(LEGACY_IMPORT_VERSION_KEY, LEGACY_IMPORT_VERSION))
+            if (dao.metaValue(LEGACY_IMPORT_VERSION_KEY) != LEGACY_IMPORT_VERSION) {
+                val legacy = readLegacySnapshot()
+                database.withWriteTransaction {
+                    if (dao.metaValue(LEGACY_IMPORT_VERSION_KEY) != LEGACY_IMPORT_VERSION) {
+                        replaceBusinessData(legacy)
+                        dao.putMeta(AppMetaEntity(LEGACY_IMPORT_VERSION_KEY, LEGACY_IMPORT_VERSION))
+                    }
+                }
             }
+            retireLegacyBusinessData()
+        }
+    }
+
+    /** Post-migration retirement only；此路徑不得讀取或改寫 Room business tables。 */
+    private suspend fun retireLegacyBusinessData() {
+        if (dao.metaValue(LEGACY_CLEANUP_STATE_KEY) in LEGACY_CLEANUP_FINAL_STATES) return
+        val legacy = try {
+            appContext.posPreferencesDataStore.data.first()
+        } catch (_: IOException) {
+            return
+        }
+        if (!legacy.isLegacyBusinessDataSafeToRetire()) {
+            dao.putMeta(AppMetaEntity(LEGACY_CLEANUP_STATE_KEY, LEGACY_CLEANUP_PRESERVED_INVALID))
+            return
+        }
+        try {
+            if (legacy.hasLegacyBusinessKeys()) {
+                appContext.posPreferencesDataStore.edit { it.removeLegacyBusinessKeys() }
+            }
+            if (!appContext.posPreferencesDataStore.data.first().hasLegacyBusinessKeys()) {
+                dao.putMeta(AppMetaEntity(LEGACY_CLEANUP_STATE_KEY, LEGACY_CLEANUP_CLEARED))
+            }
+        } catch (_: IOException) {
+            // Cleanup 不是啟動必要條件；不寫 state，下一次啟動再冪等重試。
         }
     }
 
     private suspend fun readLegacySnapshot(): PosPersistSnapshot {
         val prefs = appContext.posPreferencesDataStore.data.first()
-        val products = decodeProducts(prefs[LEGACY_PRODUCTS_JSON].orEmpty())
+        val products = decodeProducts(prefs[LEGACY_PRODUCTS_JSON_KEY].orEmpty())
         val productIds = products.mapTo(hashSetOf()) { it.id }
-        val bundles = decodeBundles(prefs[LEGACY_BUNDLES_JSON].orEmpty()).map { bundle ->
+        val bundles = decodeBundles(prefs[LEGACY_BUNDLES_JSON_KEY].orEmpty()).map { bundle ->
             bundle.copy(components = bundle.components.filter { it.productId in productIds })
         }
         val saleResult = decodeSalesRecordsJsonResult(prefs[SALES_LOG_JSON_KEY].orEmpty())
@@ -228,10 +258,10 @@ internal class RoomPosPersistence(
         val active = activeSales(sales, reversals)
         return PosPersistSnapshot(
             products = products,
-            categories = decodeCategories(prefs[LEGACY_CATEGORIES_JSON].orEmpty()),
-            bundleCategories = decodeBundleCategories(prefs[LEGACY_BUNDLE_CATEGORIES_JSON].orEmpty()),
+            categories = decodeCategories(prefs[LEGACY_CATEGORIES_JSON_KEY].orEmpty()),
+            bundleCategories = decodeBundleCategories(prefs[LEGACY_BUNDLE_CATEGORIES_JSON_KEY].orEmpty()),
             bundles = bundles,
-            cart = decodePosCartJson(prefs[LEGACY_CART_JSON].orEmpty()),
+            cart = decodePosCartJson(prefs[LEGACY_CART_JSON_KEY].orEmpty()),
             totalSales = active.sumOf { it.total + it.tipAmount },
             txCount = active.size.toLong(),
             salesLog = sales,
@@ -557,6 +587,10 @@ internal class RoomPosPersistence(
 
     companion object {
         private const val LEGACY_IMPORT_VERSION = "3"
+        private val LEGACY_CLEANUP_FINAL_STATES = setOf(
+            LEGACY_CLEANUP_CLEARED,
+            LEGACY_CLEANUP_PRESERVED_INVALID,
+        )
         private val legacyImportMutex = Mutex()
         private val BUSINESS_TABLES = arrayOf(
             "categories",
@@ -571,11 +605,5 @@ internal class RoomPosPersistence(
             "reversals",
             "last_checkout",
         )
-
-        private val LEGACY_PRODUCTS_JSON = stringPreferencesKey("products_json")
-        private val LEGACY_CATEGORIES_JSON = stringPreferencesKey("categories_json")
-        private val LEGACY_BUNDLE_CATEGORIES_JSON = stringPreferencesKey("bundle_categories_json")
-        private val LEGACY_BUNDLES_JSON = stringPreferencesKey("bundles_json")
-        private val LEGACY_CART_JSON = stringPreferencesKey("cart_json")
     }
 }

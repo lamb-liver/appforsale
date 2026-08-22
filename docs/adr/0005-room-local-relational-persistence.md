@@ -13,7 +13,7 @@ v1.3 已將 Sale／Reversal 改為 append-only audit history，但 DataStore 每
 - `PosPersistence` seam 保留；`PosViewModel` 使用 `RoomPosPersistence`，UI 不接觸 DAO／Entity。
 - Checkout、Undo、Catalog full-list sync、legacy import 與 backup restore 均使用單一 Room transaction。
 - Sales／Reversals 繼續 append-only；`UNIQUE(reversals.sale_id)` 在 DB 層保護復原唯一性，audit 關聯禁止 cascade delete。
-- v1.2／v1.3 DataStore JSON 先完成 local schema 3 遷移，再原子匯入 Room。marker 與 rows 同 transaction 寫入；成功後 legacy business keys 凍結。
+- v1.2／v1.3 DataStore JSON 先完成 local schema 3 遷移，再原子匯入 Room。marker 與 rows 同 transaction 寫入；v1.5 起由 [ADR-0006](0006-production-signing-and-data-ownership.md) 在 import 完成後負責全有或全無的 legacy retirement。
 - JSON 備份維持產品層 exchange format，不匯出 SQLite 檔。
 
 ## Alternatives considered

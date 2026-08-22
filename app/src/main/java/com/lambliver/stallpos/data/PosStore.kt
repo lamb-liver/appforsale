@@ -19,24 +19,17 @@ class PosStore(private val context: Context) : PosPersistence {
         const val BACKUP_SCHEMA_VERSION = 4
     }
 
-    private val PRODUCTS_JSON = stringPreferencesKey("products_json")
-    private val CATEGORIES_JSON = stringPreferencesKey("categories_json")
-    private val BUNDLE_CATEGORIES_JSON = stringPreferencesKey("bundle_categories_json")
-    private val BUNDLES_JSON = stringPreferencesKey("bundles_json")
-    private val CART_JSON = stringPreferencesKey("cart_json")
-    private val TOTAL_SALES = longPreferencesKey("total_sales")
-    private val TX_COUNT = longPreferencesKey("tx_count")
     override val snapshot: Flow<PosPersistSnapshot> = context.posPreferencesDataStore.data.map { prefs ->
         val sales = decodeSalesRecordsJson(prefs[SALES_LOG_JSON_KEY].orEmpty())
         val reversals = decodeSaleReversalsJson(prefs[SALES_REVERSAL_LOG_JSON_KEY].orEmpty())
         PosPersistSnapshot(
-            products = decodeProducts(prefs[PRODUCTS_JSON].orEmpty()),
-            categories = decodeCategories(prefs[CATEGORIES_JSON].orEmpty()),
-            bundleCategories = decodeBundleCategories(prefs[BUNDLE_CATEGORIES_JSON].orEmpty()),
-            bundles = decodeBundles(prefs[BUNDLES_JSON].orEmpty()),
-            cart = decodePosCartJson(prefs[CART_JSON].orEmpty()),
-            totalSales = prefs[TOTAL_SALES] ?: 0L,
-            txCount = prefs[TX_COUNT] ?: 0L,
+            products = decodeProducts(prefs[LEGACY_PRODUCTS_JSON_KEY].orEmpty()),
+            categories = decodeCategories(prefs[LEGACY_CATEGORIES_JSON_KEY].orEmpty()),
+            bundleCategories = decodeBundleCategories(prefs[LEGACY_BUNDLE_CATEGORIES_JSON_KEY].orEmpty()),
+            bundles = decodeBundles(prefs[LEGACY_BUNDLES_JSON_KEY].orEmpty()),
+            cart = decodePosCartJson(prefs[LEGACY_CART_JSON_KEY].orEmpty()),
+            totalSales = prefs[LEGACY_TOTAL_SALES_KEY] ?: 0L,
+            txCount = prefs[LEGACY_TX_COUNT_KEY] ?: 0L,
             salesLog = sales,
             reversalLog = reversals,
             lastCheckout = linkLastCheckoutToSales(
@@ -59,23 +52,23 @@ class PosStore(private val context: Context) : PosPersistence {
 
     override suspend fun applyCatalog(plan: CatalogPersistPlan) {
         context.posPreferencesDataStore.edit { prefs ->
-            plan.products?.let { prefs[PRODUCTS_JSON] = encodeProducts(it) }
-            plan.categories?.let { prefs[CATEGORIES_JSON] = encodeCategories(it) }
-            plan.bundleCategories?.let { prefs[BUNDLE_CATEGORIES_JSON] = encodeBundleCategories(it) }
-            plan.bundles?.let { prefs[BUNDLES_JSON] = encodeBundles(it) }
-            plan.cart?.let { prefs[CART_JSON] = encodePosCartJson(it) }
+            plan.products?.let { prefs[LEGACY_PRODUCTS_JSON_KEY] = encodeProducts(it) }
+            plan.categories?.let { prefs[LEGACY_CATEGORIES_JSON_KEY] = encodeCategories(it) }
+            plan.bundleCategories?.let { prefs[LEGACY_BUNDLE_CATEGORIES_JSON_KEY] = encodeBundleCategories(it) }
+            plan.bundles?.let { prefs[LEGACY_BUNDLES_JSON_KEY] = encodeBundles(it) }
+            plan.cart?.let { prefs[LEGACY_CART_JSON_KEY] = encodePosCartJson(it) }
         }
     }
 
     override suspend fun saveCart(cart: PosCart) {
         context.posPreferencesDataStore.edit { prefs ->
-            prefs[CART_JSON] = encodePosCartJson(cart)
+            prefs[LEGACY_CART_JSON_KEY] = encodePosCartJson(cart)
         }
     }
 
     override suspend fun clearCart() {
         context.posPreferencesDataStore.edit { prefs ->
-            prefs[CART_JSON] = encodePosCartJson(PosCart())
+            prefs[LEGACY_CART_JSON_KEY] = encodePosCartJson(PosCart())
         }
     }
 
@@ -83,16 +76,16 @@ class PosStore(private val context: Context) : PosPersistence {
         val prefs = context.posPreferencesDataStore.data.first()
         val payload = JSONObject().apply {
             put("payloadSchema", BACKUP_SCHEMA_VERSION)
-            put("products_json", prefs[PRODUCTS_JSON] ?: "")
-            put("categories_json", prefs[CATEGORIES_JSON] ?: "")
-            put("bundle_categories_json", prefs[BUNDLE_CATEGORIES_JSON] ?: "")
-            put("bundles_json", prefs[BUNDLES_JSON] ?: "")
-            put("cart_json", prefs[CART_JSON] ?: "")
+            put("products_json", prefs[LEGACY_PRODUCTS_JSON_KEY] ?: "")
+            put("categories_json", prefs[LEGACY_CATEGORIES_JSON_KEY] ?: "")
+            put("bundle_categories_json", prefs[LEGACY_BUNDLE_CATEGORIES_JSON_KEY] ?: "")
+            put("bundles_json", prefs[LEGACY_BUNDLES_JSON_KEY] ?: "")
+            put("cart_json", prefs[LEGACY_CART_JSON_KEY] ?: "")
             put("sales_log_json", prefs[SALES_LOG_JSON_KEY] ?: "")
             put("reversal_log_json", prefs[SALES_REVERSAL_LOG_JSON_KEY] ?: "[]")
             put("last_checkout_json", prefs[LAST_CHECKOUT_JSON_KEY] ?: "")
-            put("total_sales", prefs[TOTAL_SALES] ?: 0L)
-            put("tx_count", prefs[TX_COUNT] ?: 0L)
+            put("total_sales", prefs[LEGACY_TOTAL_SALES_KEY] ?: 0L)
+            put("tx_count", prefs[LEGACY_TX_COUNT_KEY] ?: 0L)
         }
         return JSONObject().apply {
             put("format", BACKUP_FORMAT_ID)
@@ -105,16 +98,16 @@ class PosStore(private val context: Context) : PosPersistence {
     override suspend fun restoreFullBackupJson(jsonText: String): Result<Unit> = runCatching {
         val payload = parseValidatedBackupPayload(jsonText)
         context.posPreferencesDataStore.edit { pref ->
-            pref[PRODUCTS_JSON] = payload.optString("products_json", "")
-            pref[CATEGORIES_JSON] = payload.optString("categories_json", "")
-            pref[BUNDLE_CATEGORIES_JSON] = payload.optString("bundle_categories_json", "")
-            pref[BUNDLES_JSON] = payload.optString("bundles_json", "")
-            pref[CART_JSON] = payload.optString("cart_json", "")
+            pref[LEGACY_PRODUCTS_JSON_KEY] = payload.optString("products_json", "")
+            pref[LEGACY_CATEGORIES_JSON_KEY] = payload.optString("categories_json", "")
+            pref[LEGACY_BUNDLE_CATEGORIES_JSON_KEY] = payload.optString("bundle_categories_json", "")
+            pref[LEGACY_BUNDLES_JSON_KEY] = payload.optString("bundles_json", "")
+            pref[LEGACY_CART_JSON_KEY] = payload.optString("cart_json", "")
             pref[SALES_LOG_JSON_KEY] = payload.optString("sales_log_json", "")
             pref[SALES_REVERSAL_LOG_JSON_KEY] = payload.optString("reversal_log_json", "[]")
             pref[LAST_CHECKOUT_JSON_KEY] = payload.optString("last_checkout_json", "")
-            pref[TOTAL_SALES] = payload.optLong("total_sales", 0L).coerceAtLeast(0L)
-            pref[TX_COUNT] = payload.optLong("tx_count", 0L).coerceAtLeast(0L)
+            pref[LEGACY_TOTAL_SALES_KEY] = payload.optLong("total_sales", 0L).coerceAtLeast(0L)
+            pref[LEGACY_TX_COUNT_KEY] = payload.optLong("tx_count", 0L).coerceAtLeast(0L)
             pref[TRANSACTION_SCHEMA_VERSION_KEY] = TRANSACTION_SCHEMA_VERSION
         }
     }
@@ -126,7 +119,7 @@ class PosStore(private val context: Context) : PosPersistence {
 
         context.posPreferencesDataStore.edit { prefs ->
             val saleId = UUID.randomUUID().toString()
-            val products = decodeProducts(prefs[PRODUCTS_JSON].orEmpty())
+            val products = decodeProducts(prefs[LEGACY_PRODUCTS_JSON_KEY].orEmpty())
             val resolvedLines =
                 request.checkoutLines.takeIf { it.isNotEmpty() }
                     ?: buildProductLinesFromCart(request.productCart, products)
@@ -154,7 +147,7 @@ class PosStore(private val context: Context) : PosPersistence {
                 val s = p.stock ?: return@map p
                 p.copy(stock = (s - qty).coerceAtLeast(0L))
             }
-            prefs[PRODUCTS_JSON] = encodeProducts(deducted)
+            prefs[LEGACY_PRODUCTS_JSON_KEY] = encodeProducts(deducted)
 
             prefs[LAST_CHECKOUT_JSON_KEY] = encodeLastCheckoutJson(
                 LastCheckout(
@@ -166,8 +159,8 @@ class PosStore(private val context: Context) : PosPersistence {
                     stockDeductions = resolvedDeductions,
                 ),
             )
-            prefs[TOTAL_SALES] = (prefs[TOTAL_SALES] ?: 0L) + request.total + tip
-            prefs[TX_COUNT] = (prefs[TX_COUNT] ?: 0L) + 1
+            prefs[LEGACY_TOTAL_SALES_KEY] = (prefs[LEGACY_TOTAL_SALES_KEY] ?: 0L) + request.total + tip
+            prefs[LEGACY_TX_COUNT_KEY] = (prefs[LEGACY_TX_COUNT_KEY] ?: 0L) + 1
 
             val log = decodeSalesRecordsJsonResult(prefs[SALES_LOG_JSON_KEY].orEmpty())
                 .getOrThrow()
@@ -175,7 +168,7 @@ class PosStore(private val context: Context) : PosPersistence {
             log.add(record)
             // ponytail: audit log 暫時無上限；資料量成為實測問題時由 v1.4 Room 承接。
             prefs[SALES_LOG_JSON_KEY] = encodeSalesRecordsJson(log)
-            prefs[CART_JSON] = encodePosCartJson(PosCart())
+            prefs[LEGACY_CART_JSON_KEY] = encodePosCartJson(PosCart())
         }
     }
 
@@ -183,10 +176,10 @@ class PosStore(private val context: Context) : PosPersistence {
         context.posPreferencesDataStore.edit { prefs ->
             val sales = decodeSalesRecordsJson(prefs[SALES_LOG_JSON_KEY].orEmpty())
             val snap = PosPersistSnapshot(
-                products = decodeProducts(prefs[PRODUCTS_JSON].orEmpty()),
-                cart = decodePosCartJson(prefs[CART_JSON].orEmpty()),
-                totalSales = prefs[TOTAL_SALES] ?: 0L,
-                txCount = prefs[TX_COUNT] ?: 0L,
+                products = decodeProducts(prefs[LEGACY_PRODUCTS_JSON_KEY].orEmpty()),
+                cart = decodePosCartJson(prefs[LEGACY_CART_JSON_KEY].orEmpty()),
+                totalSales = prefs[LEGACY_TOTAL_SALES_KEY] ?: 0L,
+                txCount = prefs[LEGACY_TX_COUNT_KEY] ?: 0L,
                 salesLog = sales,
                 reversalLog = decodeSaleReversalsJson(prefs[SALES_REVERSAL_LOG_JSON_KEY].orEmpty()),
                 lastCheckout = linkLastCheckoutToSales(
@@ -198,11 +191,11 @@ class PosStore(private val context: Context) : PosPersistence {
                 reversalId = UUID.randomUUID().toString(),
                 reversedAtMillis = System.currentTimeMillis(),
             ) ?: return@edit
-            prefs[TOTAL_SALES] = next.totalSales
-            prefs[TX_COUNT] = next.txCount
+            prefs[LEGACY_TOTAL_SALES_KEY] = next.totalSales
+            prefs[LEGACY_TX_COUNT_KEY] = next.txCount
             prefs[SALES_REVERSAL_LOG_JSON_KEY] = encodeSaleReversalsJson(next.reversalLog)
-            prefs[PRODUCTS_JSON] = encodeProducts(next.products)
-            prefs[CART_JSON] = encodePosCartJson(next.cart)
+            prefs[LEGACY_PRODUCTS_JSON_KEY] = encodeProducts(next.products)
+            prefs[LEGACY_CART_JSON_KEY] = encodePosCartJson(next.cart)
             prefs[LAST_CHECKOUT_JSON_KEY] = ""
         }
     }

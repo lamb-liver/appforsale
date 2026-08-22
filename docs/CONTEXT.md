@@ -47,13 +47,16 @@
 復原上一筆結帳時追加的不可變紀錄，使用自己的 UUID 並以 `saleId` 指向原 Sale。復原不移除或改寫 Sale；同一 Sale 最多一筆 Reversal。
 
 ### 報表真相源
-`Sales + Reversals` 是 dashboard、CSV 與 reports 的唯一真相源。`activeSales` 排除已被 Reversal 指向的 Sale；有效筆數為其筆數，有效營收為 `sum(total + tipAmount)`。Room 以 SQL 產生 aggregate，並與 Kotlin 明細結果對帳；舊 DataStore `total_sales`／`tx_count` 僅是 frozen migration artifact。
+`Sales + Reversals` 是 dashboard、CSV 與 reports 的唯一真相源。`activeSales` 排除已被 Reversal 指向的 Sale；有效筆數為其筆數，有效營收為 `sum(total + tipAmount)`。Room 以 SQL 產生 aggregate，並與 Kotlin 明細結果對帳；舊 DataStore `total_sales`／`tx_count` 只屬於 post-migration retirement payload。
 
 ### 上一筆結帳（可用於復原）
 Room `last_checkout` 僅保存 slot 1 與 `sale_id`。復原資格驗證、庫存／購物車恢復、Reversal append 與 LastCheckout clear 必須在同一個 write transaction 內完成；孤兒或已復原 saleId 一律 no-op。
 
 ### 本機持久化
-Business data 以 Room DB `stallpos.db` version 1 儲存，使用 SQLite 2.7.0 `BundledSQLiteDriver`。`PosPersistence` 仍是 ViewModel 唯一 seam；Compose 不接觸 Entity／DAO。DataStore 只繼續寫 UI preferences，v1.2／v1.3 business JSON 成功匯入後保留原文但永不再讀寫。
+Business data 以 Room DB `stallpos.db` version 1 儲存，使用 SQLite 2.7.0 `BundledSQLiteDriver`。`PosPersistence` 仍是 ViewModel 唯一 seam；Compose 不接觸 Entity／DAO。DataStore 只持續寫 UI preferences；`legacy_import_version=3` 後的 business JSON 只可經嚴格驗證後整批清除，或在不安全時完整保留，不得重新匯入或覆寫 Room。
+
+### 備份所有權
+Room DB 是 runtime business storage；DataStore 是 UI preferences；StallPOS JSON 是唯一正式跨安裝 business-data 搬遷格式。Android Auto Backup 與 D2D 不支援，也不得成為第二條資料還原路徑。
 
 ### 營運摘要（今日）
 聚合當日與總和的營運數字，僅為攤販現場自省用，非雲端報表。
@@ -67,7 +70,7 @@ Business data 以 Room DB `stallpos.db` version 1 儲存，使用 SQLite 2.7.0 `
 | **`schemaVersion`** | Envelope（根物件） | 控制 `parseBackupEnvelope` 是否接受、以及還原時執行哪些 **遷移步驟**（`BackupMigration.migrateV1ToV2` …）。App 支援上限為 `PosStore.BACKUP_SCHEMA_VERSION`。 |
 | **`payloadSchema`** | Payload 內 | 標記業務資料束形狀；v4 新增 checkout line `displayName` 快照。 |
 
-匯出時兩者現行同為 `4`。舊版 `schemaVersion: 1／2／3` 會依序遷移。Local DataStore 先以 custom `DataMigration<Preferences>` 完成 transaction schema 2→3，再於單一 Room transaction 匯入並寫入 `legacy_import_version=3`；失敗會 rollback 且下次啟動重試。v3→v4 只用同一 backup Catalog 回填可證明的名稱，不猜測遺失資料。
+匯出時兩者現行同為 `4`。舊版 `schemaVersion: 1／2／3` 會依序遷移。Local DataStore 先以 custom `DataMigration<Preferences>` 完成 transaction schema 2→3，再於單一 Room transaction 匯入並寫入 `legacy_import_version=3`；失敗會 rollback 且下次啟動重試。之後的 legacy retirement 不是 migration，且永遠不得改寫 Room。v3→v4 只用同一 backup Catalog 回填可證明的名稱，不猜測遺失資料。
 
 ## Relationships
 

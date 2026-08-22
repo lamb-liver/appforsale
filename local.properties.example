@@ -7,8 +7,10 @@ sdk.dir=/path/to/Android/sdk
 # 綠界贊助付款 URL：填入 app/.../ui/sponsor/SponsorLinks.kt（非本檔）
 #   ECPAY_URL_TIER_SMALL / MEDIUM / LARGE
 
-# Release signing (optional — wire in app/build.gradle.kts when you add signingConfigs)
+# Release signing (required for release builds; debug builds do not need these values)
 # storeFile=/path/to/release.keystore
 # storePassword=
-# keyAlias=
+# keyAlias=stallpos-release
 # keyPassword=
+# CI uses STALLPOS_RELEASE_STORE_FILE, STALLPOS_RELEASE_STORE_PASSWORD,
+# STALLPOS_RELEASE_KEY_ALIAS, and STALLPOS_RELEASE_KEY_PASSWORD.

@@ -1,8 +1,10 @@
 # 小攤位 · 市集 POS
 
-**版本：v1.4.0**（`VERSION` · `versionName`）
+**版本：v1.5.0**（`VERSION` · `versionName`）
 
 **離線可用的 Android 結帳 app**：快選商品／套組、現場收款、紀錄今日營收；刻意不做進銷存或複雜後台。
+
+> **v1.5 Production Baseline**：Room 是唯一 runtime business source of truth；永久 Android signing identity、fail-closed release build、GitHub Actions signed APK／checksum 與 Immutable Release 流程已就緒。產品操作與 v1.4 相同。
 
 > 本 repo 為 **Kotlin / Gradle** 專案（非 Node.js），依賴由 `gradle/libs.versions.toml` 管理。  
 > English: [README.en.md](docs/README.en.md) · **發佈／安裝／綠界**：[docs/distribution.md](docs/distribution.md)
@@ -29,7 +31,7 @@
 | Kotlin | Jetpack Compose · Material 3 | MVVM（`ViewModel` + `StateFlow`） |
 |--------|------------------------------|----------------------------------|
 | Room 3.0.1 + SQLite 2.7.0 `BundledSQLiteDriver` | Kotlin Coroutines · Flow | Lifecycle（`ProcessLifecycleOwner`、Compose lifecycle） |
-| DataStore（UI preferences + frozen legacy JSON） | kotlinx.collections.immutable | 無 Hilt／後端 |
+| DataStore（UI preferences；legacy business data 僅供一次性退休） | kotlinx.collections.immutable | 無 Hilt／後端 |
 
 > Room 選型與 legacy import 語意見 [ADR-0005](docs/adr/0005-room-local-relational-persistence.md)；DB v1 表格見 [room-schema.md](docs/room-schema.md)。
 
@@ -39,6 +41,7 @@
 
 ```
 stallpos/
+├── .github/workflows/  # PR／main CI 與 tag signed Release pipeline
 ├── app/src/main/java/com/lambliver/stallpos/
 │   ├── domain/          # 協調器（目錄／購物車／結帳）、對帳、網域模型、UI 契約
 │   ├── data/            # PosPersistence、Room DB/DAO、legacy JSON migration、CSV／備份 I/O
@@ -51,11 +54,13 @@ stallpos/
 ├── docs/
 │   ├── adr/             # 架構決策紀錄
 │   ├── distribution.md  # 發佈、sideload 安裝、綠界贊助設定
+│   ├── upgrade-qa.md    # production signing chain 與 JSON 搬遷驗收
 │   ├── CONTEXT.md       # 領域名詞（商品、購物車、結帳…）
 │   ├── CHANGELOG.md
 │   ├── README.en.md
 │   └── cursor/rule/     # Cursor 規則
 ├── gradle/              # Version catalog、Wrapper
+├── RELEASE_CERT_SHA256  # 公開 APK signing certificate fingerprint
 ├── VERSION              # App 版本單一來源（同步 versionName）
 ├── local.properties.example
 └── .cursorrules         # 減法設計、戶外高對比 UI
@@ -67,7 +72,7 @@ stallpos/
 |----|------|
 | **ui** | `PosViewModel` 訂閱 `PosPersistence.snapshot`；購物車／目錄／結帳委派各 Coordinator；`PosAppShell` 處理 SAF 匯出與 `csvShareUriFlow` 分享；`PosFeedbackManager` 統一震動／音效；贊助在 `ui/sponsor` |
 | **domain** | 純規則與協調結果（`CartResult`、`CatalogPersistPlan`、`CheckoutWriteRequest`）；`PosUiState` 衍生欄位（`cartItemCount`、`checkoutSurfaceReceivablePreview`） |
-| **data** | `PosPersistence` 介面 + `RoomPosPersistence`；Room transaction 原子處理 catalog／checkout／undo／restore；DataStore 僅保留 UI preferences 與凍結 legacy JSON |
+| **data** | `PosPersistence` 介面 + `RoomPosPersistence`；Room transaction 原子處理 catalog／checkout／undo／restore；DataStore 僅持續保存 UI preferences，legacy business keys 安全退休或完整保留 |
 
 建議閱讀順序：**`README` → `docs/CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/RoomPosPersistence.kt` → `docs/room-schema.md`**。
 
@@ -104,6 +109,23 @@ stallpos/
 現行皆為 **4**。舊 **schemaVersion: 1／2／3** 備份會依序遷移；v2→v3 補 stable identity 與 Reversal log，v3→v4 僅以同一備份的 Catalog 回填可證明的交易名稱，無法回填時保留 `null`。
 
 儀表測試（需模擬器／裝置）：`PosStoreInstrumentedTest`（Room 結帳／復原、rollback、關聯與大量歷史）。
+`LegacyRetirementInstrumentedTest` 驗證 v1.2／v1.3／v1.4 fixtures、全有或全無 cleanup 與 malformed legacy 隔離。
+
+v1.5 驗收基線（2026-08-22）：128 個 unit tests、17 個 API 35 instrumented tests、`lintDebug`、debug／signed release build 均通過；production-signed synthetic v1.2／v1.3／v1.4 原地升級，以及未知簽章 JSON 搬遷亦已實機驗證。
+
+---
+
+### v1.5 資料與發佈契約
+
+| 項目 | 契約 |
+|------|------|
+| Room `stallpos.db` | 唯一 runtime business source of truth |
+| DataStore `pos_store` | UI preferences；legacy business keys 僅能整批安全退休或完整保留 |
+| StallPOS JSON | 唯一正式跨安裝 business-data 搬遷格式 |
+| Android Auto Backup／D2D | 不支援；Manifest 與 Android 11／12+ 規則均排除 App data |
+| Release APK | 永久 production certificate 簽署；certificate fingerprint 見 `RELEASE_CERT_SHA256` |
+
+PR 與 `main` push 會執行 unit、lint、debug build 與 API 35 instrumented tests。`v*` tag 只有在版本、main ancestry、CHANGELOG、Release collision 與 Immutable Releases 驗證通過後，才會建立 signed APK、APK SHA-256、draft Release，逐 byte 核對 assets 後發布。詳見 [android.yml](.github/workflows/android.yml) 與 [distribution.md](docs/distribution.md)。
 
 ---
 
@@ -114,6 +136,7 @@ stallpos/
 - [ADR-0003 — 購物車記憶體 + debounce 寫碟](docs/adr/0003-cart-memory-with-debounced-disk-flush.md)
 - [ADR-0004 — Append-only Sales 與 Reversals](docs/adr/0004-append-only-sales-and-reversals.md)
 - [ADR-0005 — Room 本機關聯式持久化](docs/adr/0005-room-local-relational-persistence.md)
+- [ADR-0006 — Production signing、資料所有權與 legacy retirement](docs/adr/0006-production-signing-and-data-ownership.md)
 
 結帳金額語意：`docs/phase-a-checkout-money-flow.md`。
 
@@ -159,6 +182,8 @@ stallpos/
    ```bash
    ./gradlew :app:assembleDebug
    ./gradlew :app:testDebugUnitTest
+   ./gradlew :app:lintDebug
+   ./gradlew :app:connectedDebugAndroidTest  # 需 API 35 emulator／裝置
    ```
 4. 執行 App：入口 `com.lambliver.stallpos.ui.MainActivity`，`applicationId` 同 `namespace`。
 
@@ -171,7 +196,10 @@ stallpos/
 | 項目 | 存放位置 | 說明 |
 |------|----------|------|
 | 綠界付款 URL | `ui/sponsor/SponsorLinks.kt` | 三檔 `ECPAY_URL_TIER_*`；與後台金額 30／99／150 一致 |
-| Release 簽章 | `local.properties`（範本見 example） | `storeFile`／密碼等；**尚未**接入 `signingConfigs` |
+| Release certificate identity | `RELEASE_CERT_SHA256` | 公開的 64 位大寫 SHA-256；不是 keystore 或 APK checksum |
+| 本機 Release 簽章 | macOS Keychain／gitignored `local.properties` | Gradle 接受環境變數或範本中的四個 signing 欄位；缺任一項即 fail closed |
+| CI Release 簽章 | GitHub Actions Secrets | keystore base64、store password、alias、key password；只注入 release build step |
+| Keystore recovery | repo 外兩份加密備份 | 發布前須實際解密一份並核對 alias 與 certificate fingerprint |
 | SDK 路徑 | `local.properties` → `sdk.dir` | 本機路徑，勿提交 |
 
 專案內**無** Firebase `google-services.json`、AdMob、Play Billing、後端 API key。
@@ -183,9 +211,9 @@ stallpos/
 | 項目 | 說明 |
 |------|------|
 | 勿提交 | `local.properties`、`*.keystore`、`keystore.properties`、`app/build/`、`.gradle/`、`.idea/`（見 `.gitignore`） |
-| 應提交 | 原始碼、`gradle/wrapper/`、`gradlew*`、`libs.versions.toml`、`local.properties.example` |
-| 敏感資訊 | 簽章密碼只放在 **gitignore 的** `local.properties` 或本機 keystore |
-| Release 建置 | `./gradlew :app:assembleRelease`；確認 `SponsorLinks` 已填綠界 URL（若需開放贊助） |
+| 應提交 | 原始碼、workflow、`RELEASE_CERT_SHA256`、`gradle/wrapper/`、`gradlew*`、`libs.versions.toml`、`local.properties.example` |
+| 敏感資訊 | 簽章密碼只放在本機 Keychain、gitignored `local.properties` 或 GitHub Secrets；不得提交 repo |
+| Release 建置 | `./gradlew :app:assembleRelease`；必須 signed 且 fingerprint 與 `RELEASE_CERT_SHA256` 一致 |
 | 首次初始化 | `git init && git add . && git status` 確認沒有 build 產物被 staged |
 
 ```bash

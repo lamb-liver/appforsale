@@ -1,8 +1,10 @@
 # Stall POS · Market Checkout
 
-**Version: v1.4.0** (`VERSION` · `versionName`)
+**Version: v1.5.0** (`VERSION` · `versionName`)
 
 An **offline-first Android checkout app** for market stalls and small booths: quick-tap products and bundles, take payment on site, and track today’s revenue—without inventory ERP or a heavy back office.
+
+> **v1.5 Production Baseline**: Room is the only runtime business source of truth. Permanent Android signing, fail-closed release builds, verified APK checksums, and an Immutable GitHub Release workflow are ready without changing the v1.4 user journey.
 
 > This repo is a **Kotlin / Gradle** project (not Node.js). Dependencies are managed via `gradle/libs.versions.toml`.  
 > 中文說明: [README.md](../README.md) · **Distribution / install / ECPay**: [distribution.md](distribution.md)
@@ -29,7 +31,7 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 | Kotlin | Jetpack Compose · Material 3 | MVVM (`ViewModel` + `StateFlow`) |
 |--------|------------------------------|----------------------------------|
 | Room 3.0.1 + SQLite 2.7.0 `BundledSQLiteDriver` | Kotlin Coroutines · Flow | Lifecycle (`ProcessLifecycleOwner`, Compose lifecycle) |
-| DataStore (UI preferences + frozen legacy JSON) | kotlinx.collections.immutable | No Hilt / backend |
+| DataStore (UI preferences; one-time legacy retirement only) | kotlinx.collections.immutable | No Hilt / backend |
 
 > See [ADR-0005](adr/0005-room-local-relational-persistence.md) for Room and legacy import, and [room-schema.md](room-schema.md) for DB v1.
 
@@ -39,6 +41,7 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 
 ```
 stallpos/
+├── .github/workflows/  # PR / main CI and signed tag release pipeline
 ├── app/src/main/java/com/lambliver/stallpos/
 │   ├── domain/          # Coordinators (catalog / cart / checkout), pricing rules, models, UI contract
 │   ├── data/            # PosPersistence, Room DB/DAO, legacy JSON migration, CSV / backup I/O
@@ -51,11 +54,13 @@ stallpos/
 ├── docs/
 │   ├── adr/             # Architecture decision records
 │   ├── distribution.md  # Release, sideload install, ECPay sponsor setup
+│   ├── upgrade-qa.md    # Signing-chain and JSON transfer verification
 │   ├── CONTEXT.md       # Domain glossary (products, cart, checkout…)
 │   ├── CHANGELOG.md
 │   ├── README.en.md
 │   └── cursor/rule/     # Cursor rules
 ├── gradle/              # Version catalog, Wrapper
+├── RELEASE_CERT_SHA256  # Public APK signing certificate fingerprint
 ├── VERSION              # Single source for app version (synced to versionName)
 ├── local.properties.example
 └── .cursorrules         # Subtraction design, high-contrast outdoor UI
@@ -67,9 +72,9 @@ stallpos/
 |-------|----------------|
 | **ui** | `PosViewModel` observes `PosPersistence.snapshot`; cart / catalog / checkout delegate to coordinators; `PosAppShell` handles SAF export and `csvShareUriFlow` sharing; `PosFeedbackManager` for haptics / sound; sponsor under `ui/sponsor` |
 | **domain** | Pure rules and coordinator results (`CartResult`, `CatalogPersistPlan`, `CheckoutWriteRequest`); `PosUiState` derived fields (`cartItemCount`, `checkoutSurfaceReceivablePreview`) |
-| **data** | `PosPersistence` + `RoomPosPersistence`; Room transactions own catalog / checkout / undo / restore; DataStore keeps UI preferences and frozen legacy JSON only |
+| **data** | `PosPersistence` + `RoomPosPersistence`; Room transactions own catalog / checkout / undo / restore; DataStore keeps UI preferences while legacy business keys are retired all-or-nothing or preserved intact |
 
-Suggested reading order: **`README` → `CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCartCoordinator.kt` → `domain/PosCatalogCoordinator.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/PosStore.kt`**.
+Suggested reading order: **`README` → `CONTEXT.md` → `ui/PosViewModel.kt` → `domain/PosCartCoordinator.kt` → `domain/PosCatalogCoordinator.kt` → `domain/PosCheckoutCoordinator.kt` → `data/PosPersistence.kt` → `data/RoomPosPersistence.kt`**.
 
 ---
 
@@ -104,6 +109,18 @@ Coordinator and pricing unit tests can use **`FakePosPersistence`**—no device 
 Both are **4** today. Old **schemaVersion: 1 / 2 / 3** files migrate stepwise. v2→v3 adds stable identity and Reversals; v3→v4 backfills only display names provable from the same backup Catalog.
 
 Instrumented (device/emulator): `PosStoreInstrumentedTest` (Room checkout/undo, rollback, relations, and large history).
+`LegacyRetirementInstrumentedTest` covers v1.2/v1.3/v1.4 fixtures, all-or-nothing cleanup, and malformed legacy isolation.
+
+v1.5 baseline (2026-08-22): 128 unit tests, 17 API 35 instrumented tests, lint, debug build, and signed release build passed. Production-signed synthetic v1.2/v1.3/v1.4 upgrades and unknown-signature JSON transfer were also verified on-device.
+
+### Data and distribution ownership
+
+| Data | Contract |
+|------|----------|
+| Room `stallpos.db` | Only runtime business source of truth |
+| DataStore `pos_store` | UI preferences; legacy business keys retire all-or-nothing |
+| StallPOS JSON | Only supported cross-install business-data transfer format |
+| Android Auto Backup / D2D | Unsupported and excluded by the manifest and backup rules |
 
 ---
 
@@ -114,6 +131,7 @@ Instrumented (device/emulator): `PosStoreInstrumentedTest` (Room checkout/undo, 
 - [ADR-0003 — In-memory cart with debounced disk flush](adr/0003-cart-memory-with-debounced-disk-flush.md)
 - [ADR-0004 — Append-only Sales and Reversals](adr/0004-append-only-sales-and-reversals.md)
 - [ADR-0005 — Room local relational persistence](adr/0005-room-local-relational-persistence.md)
+- [ADR-0006 — Production signing, data ownership, and legacy retirement](adr/0006-production-signing-and-data-ownership.md)
 
 Checkout money semantics: `phase-a-checkout-money-flow.md`.
 
@@ -159,6 +177,8 @@ See **[distribution.md](distribution.md)** for ECPay URLs, sideload install, and
    ```bash
    ./gradlew :app:assembleDebug
    ./gradlew :app:testDebugUnitTest
+   ./gradlew :app:lintDebug
+   ./gradlew :app:connectedDebugAndroidTest  # API 35 emulator/device
    ```
 4. Run the app: entry `com.lambliver.stallpos.ui.MainActivity`; `applicationId` matches `namespace`.
 
@@ -171,7 +191,9 @@ See **[distribution.md](distribution.md)** for ECPay URLs, sideload install, and
 | Item | Where | Notes |
 |------|--------|--------|
 | ECPay payment URLs | `ui/sponsor/SponsorLinks.kt` | `ECPAY_URL_TIER_*` for NT$30 / 99 / 150 |
-| Release signing | `local.properties` (see example) | `storeFile` / passwords; **not** wired in `signingConfigs` yet |
+| Certificate identity | `RELEASE_CERT_SHA256` | Public 64-character uppercase SHA-256; not a keystore or APK checksum |
+| Local release signing | Keychain / gitignored `local.properties` | `storeFile`, store password, alias, and key password are all required |
+| CI release signing | GitHub Actions Secrets | Keystore base64 and signing values are exposed only to the release build step |
 | SDK path | `local.properties` → `sdk.dir` | Machine-local; do not commit |
 
 No Firebase `google-services.json`, AdMob, Play Billing, or backend API keys in this repo.
@@ -183,9 +205,9 @@ No Firebase `google-services.json`, AdMob, Play Billing, or backend API keys in 
 | Item | Notes |
 |------|--------|
 | Do not commit | `local.properties`, `*.keystore`, `keystore.properties`, `app/build/`, `.gradle/`, `.idea/` (see `.gitignore`) |
-| Do commit | Source, `gradle/wrapper/`, `gradlew*`, `libs.versions.toml`, `local.properties.example` |
-| Secrets | Signing passwords only in **gitignored** `local.properties` or local keystores |
-| Release builds | `./gradlew :app:assembleRelease`; set ECPay URLs in `SponsorLinks` if sponsor is enabled |
+| Do commit | Source, workflow, `RELEASE_CERT_SHA256`, `gradle/wrapper/`, `gradlew*`, `libs.versions.toml`, `local.properties.example` |
+| Secrets | Signing passwords only in Keychain, gitignored `local.properties`, or GitHub Secrets |
+| Release builds | `./gradlew :app:assembleRelease`; verify its certificate against `RELEASE_CERT_SHA256` |
 | First-time init | `git init && git add . && git status` — confirm no build artifacts are staged |
 
 ```bash
