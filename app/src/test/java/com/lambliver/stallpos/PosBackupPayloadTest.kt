@@ -127,4 +127,11 @@ class PosBackupPayloadTest {
         val out = parseBackupEnvelope(json)
         assertEquals(payload, out.payloadJson)
     }
+
+    @Test
+    fun parse_ignoresLongExportTimestampWithoutIntOverflow() {
+        val json =
+            """{"format":"${PosStore.BACKUP_FORMAT_ID}","schemaVersion":3,"exportedAtMillis":1770000000000,"payload":{}}"""
+        assertEquals(3, parseBackupEnvelope(json).schemaVersion)
+    }
 }

@@ -8,6 +8,9 @@ import com.lambliver.stallpos.domain.CheckoutSheetPricingSnapshot
 import com.lambliver.stallpos.domain.PaymentMethod
 import com.lambliver.stallpos.domain.PosCart
 import com.lambliver.stallpos.domain.Product
+import com.lambliver.stallpos.domain.ReversalReason
+import com.lambliver.stallpos.domain.SaleRecord
+import com.lambliver.stallpos.domain.SaleReversal
 import com.lambliver.stallpos.ui.PosViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +30,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * ViewModel 結帳編排：Coordinator 拒絕、持久化成功、持久化失敗還原購物車。
@@ -134,5 +140,63 @@ class PosViewModelCheckoutTest {
 
         assertEquals("結帳失敗，請再試一次", vm.toastFlow.first().message)
         assertEquals(locked, vm.uiState.value.checkoutSheetSnapshot)
+    }
+
+    @Test
+    fun reporting_usesActiveSalesInsteadOfLegacyCaches_andIncludesTips() {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.TAIWAN).format(Date())
+        val reversed = SaleRecord(
+            id = "sale-reversed",
+            tsMillis = 1L,
+            dateKey = today,
+            subtotal = 100L,
+            discount = 0L,
+            total = 100L,
+            tipAmount = 20L,
+            cartSnapshot = emptyMap(),
+        )
+        val active = reversed.copy(id = "sale-active", tsMillis = 2L, total = 50L, tipAmount = 5L)
+        val persist = FakePosPersistence(
+            PosPersistSnapshot(
+                totalSales = 9999L,
+                txCount = 99L,
+                salesLog = listOf(reversed, active),
+                reversalLog = listOf(
+                    SaleReversal("reversal-1", reversed.id, 3L, ReversalReason.UNDO_LAST_CHECKOUT),
+                ),
+            ),
+        )
+
+        runVmTest(persist) { vm, _ ->
+            assertEquals(55L, vm.uiState.value.totalSales)
+            assertEquals(1L, vm.uiState.value.txCount)
+            assertEquals(55L, vm.uiState.value.todaySales)
+            assertEquals(listOf("sale-active"), vm.uiState.value.todaySalesLog.map { it.id })
+        }
+    }
+
+    @Test
+    fun reporting_refreshesAfterSameShapeBackupRestore() {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.TAIWAN).format(Date())
+        fun sale(id: String, total: Long) = SaleRecord(
+            id = id,
+            tsMillis = 1L,
+            dateKey = today,
+            subtotal = total,
+            discount = 0L,
+            total = total,
+            cartSnapshot = emptyMap(),
+        )
+        val persist = FakePosPersistence(PosPersistSnapshot(salesLog = listOf(sale("before", 10L))))
+
+        runVmTest(persist) { vm, _ ->
+            assertEquals(10L, vm.uiState.value.todaySales)
+            val replacement = FakePosPersistence(PosPersistSnapshot(salesLog = listOf(sale("after", 20L))))
+            persist.restoreFullBackupJson(replacement.exportFullBackupJson()).getOrThrow()
+            advanceUntilIdle()
+
+            assertEquals(20L, vm.uiState.value.todaySales)
+            assertEquals("after", vm.uiState.value.todaySalesLog.single().id)
+        }
     }
 }

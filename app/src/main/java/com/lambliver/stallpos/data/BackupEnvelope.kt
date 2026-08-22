@@ -58,7 +58,7 @@ private object BackupEnvelopeJson {
         val scanner = Scanner(s)
         scanner.expect('{')
         val strings = mutableMapOf<String, String>()
-        val ints = mutableMapOf<String, Int>()
+        val ints = mutableMapOf<String, Long>()
         val raws = mutableMapOf<String, String>()
         while (true) {
             scanner.skipWs()
@@ -73,7 +73,7 @@ private object BackupEnvelopeJson {
             when (scanner.peek()) {
                 '"' -> strings[key] = scanner.readJsonString()
                 '{', '[' -> raws[key] = scanner.readJsonValueRaw()
-                else -> ints[key] = scanner.readJsonIntStrict()
+                else -> ints[key] = scanner.readJsonLongStrict()
             }
             scanner.skipWs()
             if (scanner.peek() == ',') {
@@ -92,11 +92,14 @@ private object BackupEnvelopeJson {
 
     data class TopLevelFields(
         private val strings: Map<String, String>,
-        private val ints: Map<String, Int>,
+        private val ints: Map<String, Long>,
         private val raws: Map<String, String>,
     ) {
         fun stringField(key: String): String? = strings[key]
-        fun intField(key: String): Int? = ints[key]
+        fun intField(key: String): Int? = ints[key]?.let {
+            require(it in Int.MIN_VALUE..Int.MAX_VALUE) { "備份版本格式無效" }
+            it.toInt()
+        }
         fun rawField(key: String): String? = raws[key]
     }
 
@@ -162,7 +165,7 @@ private object BackupEnvelopeJson {
         }
 
         /** 僅接受 JSON 整數 token（拒絕 `1.0`、`1e2` 等）。 */
-        fun readJsonIntStrict(): Int {
+        fun readJsonLongStrict(): Long {
             skipWs()
             val start = i
             require(start < input.length && (input[start] == '-' || input[start].isDigit())) {
@@ -175,7 +178,7 @@ private object BackupEnvelopeJson {
             require(next == null || next == ',' || next == '}' || next.isWhitespace()) {
                 "備份版本格式無效"
             }
-            return input.substring(start, i).toInt()
+            return input.substring(start, i).toLong()
         }
 
         fun readJsonValueRaw(): String {

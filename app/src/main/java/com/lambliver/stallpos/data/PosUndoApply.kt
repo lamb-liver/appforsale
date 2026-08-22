@@ -14,12 +14,16 @@ internal fun PosPersistSnapshot.toUndoState(): PosUndoCoordinator.UndoState =
         totalSales = totalSales,
         txCount = txCount,
         salesLog = salesLog,
+        reversalLog = reversalLog,
         lastCheckout = lastCheckout,
     )
 
 /** 無可復原時回傳 null。 */
-internal fun PosPersistSnapshot.applyUndoIfPossible(): PosPersistSnapshot? =
-    when (val r = PosUndoCoordinator.computeUndo(toUndoState())) {
+internal fun PosPersistSnapshot.applyUndoIfPossible(
+    reversalId: String,
+    reversedAtMillis: Long,
+): PosPersistSnapshot? =
+    when (val r = PosUndoCoordinator.computeUndo(toUndoState(), reversalId, reversedAtMillis)) {
         PosUndoCoordinator.UndoResult.NothingToUndo -> null
         is PosUndoCoordinator.UndoResult.Ready ->
             copy(
@@ -27,7 +31,7 @@ internal fun PosPersistSnapshot.applyUndoIfPossible(): PosPersistSnapshot? =
                 cart = r.effects.cart,
                 totalSales = r.effects.totalSales,
                 txCount = r.effects.txCount,
-                salesLog = r.effects.salesLog,
+                reversalLog = r.effects.reversalLog,
                 lastCheckout = null,
             )
     }

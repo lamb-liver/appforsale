@@ -10,17 +10,14 @@ internal object PosUndoCoordinator {
     /**
      * 復原計算所需之持久化快照欄位。
      *
-     * **不變量（正常路徑）**：每次結帳在同一原子寫入內追加 [salesLog] 並寫入 [lastCheckout]，
-     * 故可復原時兩者應同時存在。
-     *
-     * **防禦（損壞備份／舊資料）**：若僅 [lastCheckout] 非 null 而 [salesLog] 為空，
-     * 仍回傳 [UndoResult.Ready] 並還原購物車／庫存／累計；不對 log 做 [removeAt]（避免 IndexOutOfBounds）。
+     * 呼叫端必須在寫入 Reversal 的同一個原子 persistence transaction 內建立此快照。
      */
     data class UndoState(
         val products: List<Product>,
         val totalSales: Long,
         val txCount: Long,
         val salesLog: List<SaleRecord>,
+        val reversalLog: List<SaleReversal>,
         val lastCheckout: LastCheckout?,
     )
 
@@ -37,17 +34,27 @@ internal object PosUndoCoordinator {
         val cart: PosCart,
         val totalSales: Long,
         val txCount: Long,
-        val salesLog: List<SaleRecord>,
+        val reversalLog: List<SaleReversal>,
     )
 
-    fun computeUndo(state: UndoState): UndoResult {
+    fun computeUndo(
+        state: UndoState,
+        reversalId: String,
+        reversedAtMillis: Long,
+    ): UndoResult {
         val last = state.lastCheckout ?: return UndoResult.NothingToUndo
-        return UndoResult.Ready(buildEffects(state, last))
+        if (reversalId.isBlank()) return UndoResult.NothingToUndo
+        if (state.salesLog.none { it.id == last.saleId }) return UndoResult.NothingToUndo
+        if (state.reversalLog.any { it.saleId == last.saleId }) return UndoResult.NothingToUndo
+        return UndoResult.Ready(buildEffects(state, last, reversalId, reversedAtMillis))
     }
 
-    private fun buildEffects(state: UndoState, last: LastCheckout): UndoEffects {
-        val log = trimLastSaleIfPresent(state.salesLog)
-
+    private fun buildEffects(
+        state: UndoState,
+        last: LastCheckout,
+        reversalId: String,
+        reversedAtMillis: Long,
+    ): UndoEffects {
         val restoreQty = stockQtyToRestore(last)
         val restoredProducts = restoreProductStock(state.products, restoreQty)
 
@@ -57,14 +64,13 @@ internal object PosUndoCoordinator {
             // [LastCheckout.total] 為結帳時寫入之應收＋小費（見 checkout 建立處）
             totalSales = (state.totalSales - last.total).coerceAtLeast(0L),
             txCount = (state.txCount - 1).coerceAtLeast(0L),
-            salesLog = log,
+            reversalLog = state.reversalLog + SaleReversal(
+                id = reversalId,
+                saleId = last.saleId,
+                tsMillis = reversedAtMillis,
+                reason = ReversalReason.UNDO_LAST_CHECKOUT,
+            ),
         )
-    }
-
-    /** 有紀錄才移除最後一筆；空列表明跳過（見 [UndoState] KDoc）。 */
-    private fun trimLastSaleIfPresent(salesLog: List<SaleRecord>): List<SaleRecord> {
-        if (salesLog.isEmpty()) return salesLog
-        return salesLog.toMutableList().also { it.removeAt(it.lastIndex) }
     }
 
     private fun stockQtyToRestore(last: LastCheckout): Map<String, Long> =

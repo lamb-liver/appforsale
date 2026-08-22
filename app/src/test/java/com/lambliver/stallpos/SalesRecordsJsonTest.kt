@@ -6,7 +6,10 @@ import com.lambliver.stallpos.data.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class SalesRecordsJsonTest {
 
     @Test
@@ -16,6 +19,7 @@ class SalesRecordsJsonTest {
         val rows = decodeSalesRecordsJson(json)
         assertEquals(1, rows.size)
         val r = rows[0]
+        assertTrue(r.id.isNotBlank())
         assertEquals(10L, r.tsMillis)
         assertEquals(mapOf("x" to 2), r.cartSnapshot)
         assertEquals(emptyMap<String, Int>(), r.bundleCartSnapshot)
@@ -51,6 +55,7 @@ class SalesRecordsJsonTest {
     @Test
     fun encodeDecode_roundTrip_preservesSaleRecords() {
         val rich = SaleRecord(
+            id = "sale-rich",
             tsMillis = 99L,
             dateKey = "2026-05-14",
             subtotal = 500L,
@@ -64,6 +69,7 @@ class SalesRecordsJsonTest {
             stockDeductions = mapOf("p1" to 3L),
         )
         val minimal = SaleRecord(
+            id = "sale-minimal",
             tsMillis = 1L,
             dateKey = "d",
             subtotal = 0L,
@@ -78,6 +84,7 @@ class SalesRecordsJsonTest {
     @Test
     fun encodeDecode_roundTrip_preservesLastCheckout() {
         val lc = LastCheckout(
+            saleId = "sale-1",
             tsMillis = 100L,
             total = 999L,
             productCart = mapOf("a" to 2),
@@ -97,5 +104,26 @@ class SalesRecordsJsonTest {
     fun decode_invalid_returnsEmpty() {
         assertTrue(decodeSalesRecordsJson("oops").isEmpty())
         assertTrue(decodeSalesRecordsJson("[]").isEmpty())
+    }
+
+    @Test
+    fun legacyIds_areDeterministicAndPersistAfterRoundTrip() {
+        val json =
+            """[{"ts":10,"date":"d","subtotal":1,"discount":0,"total":1,"cart":{},"bundles":{},"paymentMethod":"CASH","tipAmount":0,"lines":[],"stockDeductions":{}},{"ts":10,"date":"d","subtotal":1,"discount":0,"total":1,"cart":{},"bundles":{},"paymentMethod":"CASH","tipAmount":0,"lines":[],"stockDeductions":{}}]"""
+        val first = decodeSalesRecordsJson(json)
+        val second = decodeSalesRecordsJson(json)
+
+        assertEquals(first.map { it.id }, second.map { it.id })
+        assertTrue(first[0].id != first[1].id)
+        val persisted = decodeSalesRecordsJson(encodeSalesRecordsJson(first)).reversed()
+        assertEquals(first.map { it.id }.reversed(), persisted.map { it.id })
+    }
+
+    @Test
+    fun reversal_roundTrip_preservesIdentity() {
+        val reversals = listOf(
+            SaleReversal("reversal-1", "sale-1", 7L, ReversalReason.UNDO_LAST_CHECKOUT),
+        )
+        assertEquals(reversals, decodeSaleReversalsJson(encodeSaleReversalsJson(reversals)))
     }
 }

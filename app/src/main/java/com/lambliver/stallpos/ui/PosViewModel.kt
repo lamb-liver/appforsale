@@ -53,15 +53,6 @@ class PosViewModel @JvmOverloads constructor(
     /** 上次執行庫存 clamp 時的目錄指紋；僅在目錄變更時重新 clamp。 */
     internal var lastCatalogClampKey: String? = null
 
-    private var todaySalesLogCacheKey: TodaySalesLogCacheKey? = null
-    private var cachedTodaySalesLog: List<SaleRecord> = emptyList()
-
-    private data class TodaySalesLogCacheKey(
-        val todayKey: String,
-        val logSize: Int,
-        val lastTsMillis: Long,
-    )
-
     internal val posUiState = MutableStateFlow(PosUiState())
     /** 畫面唯一訂閱來源（商品、購物車、統計等皆由此組合）。 */
     val uiState: StateFlow<PosUiState> = posUiState.asStateFlow()
@@ -202,7 +193,8 @@ class PosViewModel @JvmOverloads constructor(
         val productPart = snap.products.sumOf { (cart.products[it.id] ?: 0).toLong() * it.price }
         val bundlePart = snap.bundles.sumOf { (cart.bundles[it.id] ?: 0).toLong() * it.price }
         val subtotal = productPart + bundlePart
-        val todaySalesLog = todaySalesLogFor(snap.salesLog, todayKey)
+        val effectiveSales = activeSales(snap.salesLog, snap.reversalLog)
+        val todaySalesLog = effectiveSales.filter { it.dateKey == todayKey }
 
         return PosUiState(
             isLoading = false,
@@ -211,27 +203,16 @@ class PosViewModel @JvmOverloads constructor(
             bundles = snap.bundles.toImmutableList(),
             bundleCategories = snap.bundleCategories.toImmutableList(),
             cart = cart,
-            totalSales = snap.totalSales,
-            txCount = snap.txCount,
+            totalSales = effectiveSales.sumOf { it.total + it.tipAmount },
+            txCount = effectiveSales.size.toLong(),
             salesLog = snap.salesLog.toImmutableList(),
+            reversalLog = snap.reversalLog.toImmutableList(),
             todaySalesLog = todaySalesLog.toImmutableList(),
             lastCheckout = snap.lastCheckout,
             subtotal = subtotal,
             todayKey = todayKey,
             todaySales = todaySalesLog.sumOf { it.total + it.tipAmount },
         )
-    }
-
-    private fun todaySalesLogFor(salesLog: List<SaleRecord>, todayKey: String): List<SaleRecord> {
-        val key = TodaySalesLogCacheKey(
-            todayKey = todayKey,
-            logSize = salesLog.size,
-            lastTsMillis = salesLog.lastOrNull()?.tsMillis ?: 0L,
-        )
-        if (key == todaySalesLogCacheKey) return cachedTodaySalesLog
-        todaySalesLogCacheKey = key
-        cachedTodaySalesLog = salesLog.filter { it.dateKey == todayKey }
-        return cachedTodaySalesLog
     }
 
     private val dateFormatter = ThreadLocal.withInitial {

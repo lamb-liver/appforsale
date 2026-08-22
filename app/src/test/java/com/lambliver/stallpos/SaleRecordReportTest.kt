@@ -11,6 +11,7 @@ class SaleRecordReportTest {
     @Test
     fun productQtySoldForReport_usesStockDeductionsWhenPresent() {
         val r = SaleRecord(
+            id = "sale-1",
             tsMillis = 1L,
             dateKey = "2026-05-13",
             subtotal = 100L,
@@ -25,6 +26,7 @@ class SaleRecordReportTest {
     @Test
     fun productQtySoldForReport_fallsBackToCartSnapshot() {
         val r = SaleRecord(
+            id = "sale-2",
             tsMillis = 1L,
             dateKey = "2026-05-13",
             subtotal = 100L,

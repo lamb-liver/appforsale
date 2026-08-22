@@ -78,6 +78,7 @@ data class PosUiState(
     val totalSales: Long = 0L,
     val txCount: Long = 0L,
     val salesLog: ImmutableList<SaleRecord> = persistentListOf(),
+    val reversalLog: ImmutableList<SaleReversal> = persistentListOf(),
     val todaySalesLog: ImmutableList<SaleRecord> = persistentListOf(),
     val lastCheckout: LastCheckout? = null,
     val subtotal: Long = 0L,

@@ -91,6 +91,7 @@ sealed class SaleCheckoutLine {
  * 讀取語意化別名：[amountDue]（= [total]）。
  */
 data class SaleRecord(
+    val id: String,
     val tsMillis: Long,
     val dateKey: String,
   /** 持久化鍵名 `subtotal`；值 = 應收款（與 [total] 相同）。≠ `PosUiState.subtotal`（目錄小計）。 */
@@ -107,6 +108,27 @@ data class SaleRecord(
     val stockDeductions: Map<String, Long> = emptyMap(),
 )
 
+enum class ReversalReason {
+    UNDO_LAST_CHECKOUT,
+}
+
+/** Append-only 撤銷紀錄；[saleId] 必須指向既有且尚未撤銷的 [SaleRecord]。 */
+data class SaleReversal(
+    val id: String,
+    val saleId: String,
+    val tsMillis: Long,
+    val reason: ReversalReason,
+)
+
+/** 報表唯一真相源：Sales 減去 Reversals。 */
+fun activeSales(
+    sales: List<SaleRecord>,
+    reversals: List<SaleReversal>,
+): List<SaleRecord> {
+    val reversedIds = reversals.mapTo(HashSet(reversals.size)) { it.saleId }
+    return sales.filterNot { it.id in reversedIds }
+}
+
 /** 應收款（不含小費）；與 [SaleRecord.total] 相同，供報表／對帳閱讀。 */
 val SaleRecord.amountDue: Long get() = total
 
@@ -115,6 +137,7 @@ fun SaleRecord.productQtySoldForReport(): Map<String, Long> =
     else cartSnapshot.mapValues { it.value.toLong() }
 
 data class LastCheckout(
+    val saleId: String,
     val tsMillis: Long,
     val total: Long,
     val productCart: Map<String, Int>,

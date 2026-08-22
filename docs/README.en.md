@@ -1,6 +1,6 @@
 # Stall POS · Market Checkout
 
-**Version: v1.2.0** (`VERSION` · `versionName` · [Releases](https://github.com/lamb-liver/appforsale/releases/tag/v1.2.0))
+**Version: v1.3.0** (`VERSION` · `versionName`)
 
 An **offline-first Android checkout app** for market stalls and small booths: quick-tap products and bundles, take payment on site, and track today’s revenue—without inventory ERP or a heavy back office.
 
@@ -17,8 +17,8 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 | Stock | Optional per-product stock; bundles share stock with singles |
 | Haptic & sound | Tap / checkout success / error feedback; independent toggles in settings; silent & vibrate ringer modes = haptic only |
 | Today dashboard | Same-day revenue and transaction count |
-| Undo | Short window to undo the last checkout |
-| CSV export | Top-bar file icon → SAF save location → system share sheet (Line, Drive, email, …) |
+| Undo | Undo the last checkout and immediately restore stock, cart, and revenue |
+| CSV export | A readable report of active transactions only, saved through SAF and shared with the system sheet |
 | JSON backup / restore | Full `PosStore` state from the settings menu |
 | Sponsor developer | Voluntary support (NT$30 / 99 / 150); settings → ECPay in external browser; not stall checkout |
 
@@ -84,8 +84,8 @@ Suggested reading order: **`README` → `CONTEXT.md` → `ui/PosViewModel.kt` �
 | `PosCheckoutCoordinatorTest` | Checkout reconcile, subtotal race, insufficient stock |
 | `PosCartCoordinatorTest` | Cart add/remove, stock caps, clamp |
 | `PosViewModelCheckoutTest` | VM checkout success / failure restore / reconcile reject (Robolectric + `FakePosPersistence`) |
-| `PosUndoCoordinatorTest` | Undo-last-checkout rules, stock restore fallback |
-| `BackupMigrationTest` | Backup schema 1→2 migration, idempotency, restore |
+| `PosUndoCoordinatorTest` | Append-only undo, orphan / duplicate rejection, stock restore fallback |
+| `BackupMigrationTest` | Backup schema 1 / 2→3, stable IDs, LastCheckout linking, idempotency |
 | `PosBackupPayloadTest` | Backup envelope `parseBackupEnvelope` (plain JVM) |
 | `PosFeedbackManagerTest` | Sound gating (`shouldPlaySound`: NORMAL / VIBRATE / SILENT) |
 | `CheckoutBottomSheetComposeTest` | Checkout sheet interactions (Robolectric Compose) |
@@ -99,9 +99,9 @@ Coordinator and pricing unit tests can use **`FakePosPersistence`**—no device 
 | Field | Layer | Role |
 |-------|-------|------|
 | **`schemaVersion`** | Envelope (backup file root) | `parseBackupEnvelope` validation and migration steps (`BackupMigration`) |
-| **`payloadSchema`** | Inside `payload` | Business blob shape (`products_json`, etc.); `migrateV1ToV2` only adds this marker |
+| **`payloadSchema`** | Inside `payload` | Business blob shape; v3 adds Sale IDs, `reversal_log_json`, and LastCheckout linkage |
 
-Both are **2** today. Restoring an old **schemaVersion: 1** file is migrated in `parseValidatedBackupPayload`. **`migrateV1ToV2` is idempotent** (won’t rewrite an existing `payloadSchema`). See `CONTEXT.md` and `data/BackupMigration.kt`.
+Both are **3** today. Old **schemaVersion: 1 / 2** files migrate stepwise in `parseValidatedBackupPayload`. The v2→v3 step generates deterministic legacy Sale IDs, links `LastCheckout.saleId` only on a unique match, and initializes an empty Reversal log. See `CONTEXT.md` and `data/BackupMigration.kt`.
 
 Instrumented (device/emulator): `PosStoreInstrumentedTest` (DataStore checkout/undo E2E).
 
@@ -112,6 +112,7 @@ Instrumented (device/emulator): `PosStoreInstrumentedTest` (DataStore checkout/u
 - [ADR-0001 — DataStore + JSON for app state](adr/0001-pos-state-in-datastore-json.md)
 - [ADR-0002 — Reconcile amounts at checkout confirm](adr/0002-checkout-reconcile-at-confirm.md)
 - [ADR-0003 — In-memory cart with debounced disk flush](adr/0003-cart-memory-with-debounced-disk-flush.md)
+- [ADR-0004 — Append-only Sales and Reversals](adr/0004-append-only-sales-and-reversals.md)
 
 Checkout money semantics: `phase-a-checkout-money-flow.md`.
 

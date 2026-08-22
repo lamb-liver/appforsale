@@ -4,11 +4,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.semantics.SemanticsActions
 import com.lambliver.stallpos.domain.PaymentMethod
 import com.lambliver.stallpos.ui.feedback.PosFeedbackManager
 import com.lambliver.stallpos.ui.pos.CheckoutBottomSheet
@@ -53,6 +56,7 @@ class CheckoutBottomSheetComposeTest {
                 )
             }
         }
+        composeRule.mainClock.advanceTimeBy(1_000L)
         composeRule.waitForIdle()
     }
 
@@ -68,8 +72,13 @@ class CheckoutBottomSheetComposeTest {
         var method: PaymentMethod? = null
         launchSheet(onConfirm = { m, _ -> method = m })
 
-        composeRule.onNodeWithText("行動支付").performClick()
-        composeRule.onNodeWithTag(CheckoutSheetTestTags.CONFIRM).performClick()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.DIGITAL_PAYMENT)
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.DIGITAL_PAYMENT).assertIsSelected()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.CONFIRM)
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
 
         assertEquals(PaymentMethod.DIGITAL, method)
     }
@@ -79,8 +88,12 @@ class CheckoutBottomSheetComposeTest {
         var confirmCount = 0
         launchSheet(total = 120L, onConfirm = { _, _ -> confirmCount++ })
 
-        composeRule.onNodeWithTag(CheckoutSheetTestTags.CASH_INPUT).performTextInput("50")
-        composeRule.onNodeWithTag(CheckoutSheetTestTags.CONFIRM).performClick()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.CASH_INPUT).performTextReplacement("50")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.CASH_INPUT).assertTextEquals("收款金額", "50")
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.CONFIRM)
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
 
         assertEquals(0, confirmCount)
     }
@@ -90,8 +103,12 @@ class CheckoutBottomSheetComposeTest {
         var tip = -1L
         launchSheet(total = 100L, onConfirm = { _, t -> tip = t })
 
-        composeRule.onNodeWithTag(CheckoutSheetTestTags.CASH_INPUT).performTextInput("100")
-        composeRule.onNodeWithTag(CheckoutSheetTestTags.CONFIRM).performClick()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.CASH_INPUT).performTextReplacement("100")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.CASH_INPUT).assertTextEquals("收款金額", "100")
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.CONFIRM)
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
 
         assertEquals(0L, tip)
     }

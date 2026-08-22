@@ -47,6 +47,7 @@ import java.text.NumberFormat
 internal object CheckoutSheetTestTags {
     const val RECEIVABLE = "checkout_sheet_receivable"
     const val CASH_INPUT = "checkout_cash_input"
+    const val DIGITAL_PAYMENT = "checkout_digital_payment"
     const val CONFIRM = "checkout_confirm_button"
 }
 
@@ -475,6 +476,7 @@ internal fun CheckoutBottomSheet(
                             cashInput = ""
                         }
                     },
+                    modifier      = Modifier.testTag(CheckoutSheetTestTags.DIGITAL_PAYMENT),
                     shape         = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                 ) { Text("行動支付", fontWeight = FontWeight.Bold) }
             }

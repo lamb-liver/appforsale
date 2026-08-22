@@ -40,11 +40,17 @@
 ### 結帳
 收款動作確認的時間點：驗證金額與庫存、寫入**銷貨紀錄**、更新累計營收與可供復原快照，並視規則清空進行中之**購物車**。為單機上的原子写入語意。
 
-### 銷貨紀錄
-每次**結帳**成功追加的一則紀錄（時間、金額分欄位、支付方式、備註性欄位如小費等），用於對帳與當日回顧。**銷貨紀錄**為追加語意之最終事實，一般不做就地修改。
+### 銷貨紀錄（Sale）
+每次**結帳**成功追加的一則不可變紀錄，使用永久 UUID 識別。`SaleRecord.total` 是不含小費的應收款；有效營收需計入 `total + tipAmount`。Sales audit log 不修改、不刪除。
+
+### 復原紀錄（Reversal）
+復原上一筆結帳時追加的不可變紀錄，使用自己的 UUID 並以 `saleId` 指向原 Sale。復原不移除或改寫 Sale；同一 Sale 最多一筆 Reversal。
+
+### 報表真相源
+`Sales + Reversals` 是 dashboard、CSV 與 reports 的唯一真相源。`activeSales` 排除已被 Reversal 指向的 Sale；有效筆數為其筆數，有效營收為 `sum(total + tipAmount)`。DataStore 的 `total_sales`／`tx_count` 僅是舊資料與備份相容用的 legacy cached aggregate，不可作為 authoritative reporting source。
 
 ### 上一筆結帳（可用於復原）
-僅保存「最近」一次**結帳**之快照，用以在發現錯誤時，於單機上還原庫存、累計數字與**購物車**到一定狀態。不是多日歷史版本控制。
+僅保存「最近」一次**結帳**之快照，並以 `saleId` 指向原 Sale。復原資格驗證與庫存／購物車／Reversal／legacy cache 寫入必須在同一個 DataStore `edit` 內完成；孤兒或已復原 saleId 一律 no-op。
 
 ### 營運摘要（今日）
 聚合當日與總和的營運數字，僅為攤販現場自省用，非雲端報表。
@@ -56,13 +62,13 @@
 | 欄位 | 層級 | 職責 |
 |------|------|------|
 | **`schemaVersion`** | Envelope（根物件） | 控制 `parseBackupEnvelope` 是否接受、以及還原時執行哪些 **遷移步驟**（`BackupMigration.migrateV1ToV2` …）。App 支援上限為 `PosStore.BACKUP_SCHEMA_VERSION`。 |
-| **`payloadSchema`** | Payload 內 | 標記業務資料束（`products_json`、`cart_json` 等）的形狀；供 **payload 內欄位** 演進。`migrateV1ToV2` 僅補上此鍵，既有 decode 邏輯不變。 |
+| **`payloadSchema`** | Payload 內 | 標記業務資料束形狀；v3 新增 Sale ID、`reversal_log_json` 與 `LastCheckout.saleId`。 |
 
-匯出時兩者現行同為 `2`。舊版 envelope `schemaVersion: 1` 備份還原時會自動遷移至目前版本（`parseValidatedBackupPayload`）。
+匯出時兩者現行同為 `3`。舊版 envelope `schemaVersion: 1／2` 備份還原時會依序遷移至目前版本。Local DataStore 另以 custom `DataMigration<Preferences>` 完成 transaction schema 2→3；legacy ID 由穩定欄位、排序後 maps 與原始 list index deterministic 產生並立即寫回。LastCheckout 只在唯一匹配時補 `saleId`，否則停用 Undo。
 
 ## Relationships
 
 - **目錄**由多個 **商品**、多個 **套組**（與各自的 **商品分類**／套組分類）組成。
 - **購物車**引用既有的 **商品** 與 **套組**；調整數量時必須尊重庫存與套組相互排擠規則。
-- 一次 **結帳** 產生一筆 **銷貨紀錄**，並維護 **上一筆結帳（可用於復原）** 供必要時回溯。
+- 一次 **結帳** 產生一筆 **Sale**，並維護 **上一筆結帳（可用於復原）**；復原時保留 Sale 並追加 **Reversal**。
 - **應收款**由 **購物車**之目錄小計再加上 **加價／折讓淨調整**派生並加以驗證。

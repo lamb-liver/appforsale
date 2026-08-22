@@ -2,6 +2,22 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [1.3.0] - 2026-08-22
+
+### Added
+
+- Sale／Reversal 永久 UUID 與 append-only transaction audit model
+- Local DataStore transaction schema 2→3 custom migration；備份 schema 1／2→3 migration
+- 日常 CSV 維持易讀欄位並只列有效交易；完整 audit history 保留於 JSON backup
+
+### Changed
+
+- Dashboard、CSV 與 reports 統一由 active Sales（Sales 排除 Reversals）派生；營收包含小費
+- Undo 改為同一個 DataStore `edit` 內驗證並追加 Reversal，Sale 不再刪除
+- 移除 5,000 筆 Sales 裁切；`total_sales`／`tx_count` 降為 legacy cached aggregate
+- 備份 envelope 整數 parser 支援 Long，避免 `exportedAtMillis` overflow
+- 修正 launcher 圖示檔案格式，確保 clean release build 可正常打包
+
 ## [1.2.0] - 2026-05-20
 
 ### Added
@@ -48,6 +64,7 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[1.3.0]: https://github.com/lamb-liver/appforsale/compare/v1.2.0...HEAD
 [1.2.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.2.0
 [1.1.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.0.0

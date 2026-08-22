@@ -5,6 +5,7 @@ import com.lambliver.stallpos.domain.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
+import java.util.UUID
 
 /**
  * 購物車／銷售紀錄／上一筆結帳／備份封包驗證等 JSON 縫（與目錄 JSON [PosPersistCatalogJson]、網域模型 [PosPersistModels] 分檔）。
@@ -125,6 +126,7 @@ internal fun encodeSalesRecordsJson(log: List<SaleRecord>): String =
         log.forEach { r ->
             put(
                 JSONObject()
+                    .put("id", r.id)
                     .put("ts", r.tsMillis)
                     .put("date", r.dateKey)
                     .put("subtotal", r.subtotal)
@@ -142,6 +144,7 @@ internal fun encodeSalesRecordsJson(log: List<SaleRecord>): String =
 
 internal fun encodeLastCheckoutJson(l: LastCheckout): String =
     JSONObject()
+        .put("saleId", l.saleId)
         .put("ts", l.tsMillis)
         .put("total", l.total)
         .put("cart", JSONObject(encodeCartFlatJson(l.productCart)))
@@ -153,6 +156,7 @@ internal fun decodeLastCheckoutJson(json: String): LastCheckout? = runCatching {
     if (json.isBlank()) return@runCatching null
     val o = JSONObject(json)
     LastCheckout(
+        saleId = o.optString("saleId", "").trim(),
         tsMillis = o.getLong("ts"),
         total = o.getLong("total"),
         productCart = decodeCartFlatJson(o.getJSONObject("cart").toString()),
@@ -161,12 +165,14 @@ internal fun decodeLastCheckoutJson(json: String): LastCheckout? = runCatching {
     )
 }.getOrNull()
 
-internal fun decodeSalesRecordsJson(json: String): List<SaleRecord> = runCatching {
+internal fun decodeSalesRecordsJsonResult(json: String): Result<List<SaleRecord>> = runCatching {
+    if (json.isBlank()) return@runCatching emptyList()
     val arr = JSONArray(json)
     List(arr.length()) { i ->
         val o = arr.getJSONObject(i)
         val cartJson = o.optJSONObject("cart")?.toString() ?: "{}"
-        SaleRecord(
+        val record = SaleRecord(
+            id = o.optString("id", "").trim(),
             tsMillis = o.getLong("ts"),
             dateKey = o.getString("date"),
             subtotal = o.getLong("subtotal"),
@@ -179,8 +185,126 @@ internal fun decodeSalesRecordsJson(json: String): List<SaleRecord> = runCatchin
             checkoutLines = decodeCheckoutLinesPersist(o.optJSONArray("lines")),
             stockDeductions = decodeLongQtyMapPersist(o.optJSONObject("stockDeductions")),
         )
+        if (record.id.isNotEmpty()) record else record.copy(id = legacySaleId(i, record))
+    }
+}
+
+internal fun decodeSalesRecordsJson(json: String): List<SaleRecord> =
+    decodeSalesRecordsJsonResult(json).getOrElse { emptyList() }
+
+internal fun encodeSaleReversalsJson(log: List<SaleReversal>): String =
+    JSONArray().apply {
+        log.forEach { reversal ->
+            put(
+                JSONObject()
+                    .put("id", reversal.id)
+                    .put("saleId", reversal.saleId)
+                    .put("ts", reversal.tsMillis)
+                    .put("reason", reversal.reason.name),
+            )
+        }
+    }.toString()
+
+internal fun decodeSaleReversalsJson(json: String): List<SaleReversal> = runCatching {
+    if (json.isBlank()) return@runCatching emptyList()
+    val arr = JSONArray(json)
+    List(arr.length()) { i ->
+        val o = arr.getJSONObject(i)
+        SaleReversal(
+            id = o.getString("id"),
+            saleId = o.getString("saleId"),
+            tsMillis = o.getLong("ts"),
+            reason = ReversalReason.valueOf(o.getString("reason")),
+        )
     }
 }.getOrElse { emptyList() }
+
+/** Legacy LastCheckout 只在唯一匹配時補 saleId；不猜測 destructive Undo 目標。 */
+internal fun linkLastCheckoutToSales(
+    lastCheckout: LastCheckout?,
+    sales: List<SaleRecord>,
+): LastCheckout? {
+    val last = lastCheckout ?: return null
+    if (last.saleId.isNotBlank()) {
+        return last.takeIf { candidate -> sales.any { it.id == candidate.saleId } }
+    }
+    val matches = sales.filter { sale ->
+        sale.tsMillis == last.tsMillis &&
+            sale.total + sale.tipAmount == last.total &&
+            sale.cartSnapshot == last.productCart &&
+            sale.bundleCartSnapshot == last.bundleCart &&
+            (last.stockDeductions.isEmpty() || sale.stockDeductions == last.stockDeductions)
+    }
+    return matches.singleOrNull()?.let { last.copy(saleId = it.id) }
+}
+
+internal data class MigratedTransactionJson(
+    val salesJson: String,
+    val lastCheckoutJson: String,
+)
+
+/** 一次性 v2→v3 正規化；失敗由 caller 保留原 Sales 並停用 Undo。 */
+internal fun migrateLegacyTransactionJson(
+    salesJson: String,
+    lastCheckoutJson: String,
+): Result<MigratedTransactionJson> = decodeSalesRecordsJsonResult(salesJson).map { sales ->
+    val linkedLast = linkLastCheckoutToSales(decodeLastCheckoutJson(lastCheckoutJson), sales)
+    MigratedTransactionJson(
+        salesJson = encodeSalesRecordsJson(sales),
+        lastCheckoutJson = linkedLast?.let(::encodeLastCheckoutJson).orEmpty(),
+    )
+}
+
+private fun legacySaleId(index: Int, sale: SaleRecord): String {
+    val canonical = buildString {
+        append("stallpos:legacy-sale:v1|")
+        appendLegacyToken(index)
+        appendLegacyToken(sale.tsMillis)
+        appendLegacyToken(sale.dateKey)
+        appendLegacyToken(sale.subtotal)
+        appendLegacyToken(sale.discount)
+        appendLegacyToken(sale.total)
+        appendLegacyToken(sale.paymentMethod.name)
+        appendLegacyToken(sale.tipAmount)
+        appendLegacyToken("productCart")
+        sale.cartSnapshot.toSortedMap().forEach { (id, qty) ->
+            appendLegacyToken(id)
+            appendLegacyToken(qty)
+        }
+        appendLegacyToken("bundleCart")
+        sale.bundleCartSnapshot.toSortedMap().forEach { (id, qty) ->
+            appendLegacyToken(id)
+            appendLegacyToken(qty)
+        }
+        appendLegacyToken("checkoutLines")
+        sale.checkoutLines.forEach { line ->
+            when (line) {
+                is SaleCheckoutLine.Product -> {
+                    appendLegacyToken("product")
+                    appendLegacyToken(line.productId)
+                }
+                is SaleCheckoutLine.Bundle -> {
+                    appendLegacyToken("bundle")
+                    appendLegacyToken(line.bundleId)
+                }
+            }
+            appendLegacyToken(line.qty)
+            appendLegacyToken(line.unitPrice)
+            appendLegacyToken(line.lineSubtotal)
+        }
+        appendLegacyToken("stockDeductions")
+        sale.stockDeductions.toSortedMap().forEach { (id, qty) ->
+            appendLegacyToken(id)
+            appendLegacyToken(qty)
+        }
+    }
+    return UUID.nameUUIDFromBytes(canonical.toByteArray(Charsets.UTF_8)).toString()
+}
+
+private fun StringBuilder.appendLegacyToken(value: Any) {
+    val text = value.toString()
+    append(text.length).append(':').append(text).append('|')
+}
 
 internal fun parseValidatedBackupPayload(jsonText: String): JSONObject {
     val envelope = parseBackupEnvelope(jsonText)

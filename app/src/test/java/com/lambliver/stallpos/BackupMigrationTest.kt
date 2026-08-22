@@ -1,76 +1,88 @@
 package com.lambliver.stallpos
 
-import com.lambliver.stallpos.data.BackupMigration
-import com.lambliver.stallpos.data.PosStore
-import com.lambliver.stallpos.data.parseBackupEnvelope
-import com.lambliver.stallpos.data.parseValidatedBackupPayload
+import com.lambliver.stallpos.data.*
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class BackupMigrationTest {
 
-    private fun v1Envelope(payload: JSONObject = v1Payload()): String =
-        """{"format":"${PosStore.BACKUP_FORMAT_ID}","schemaVersion":1,"payload":$payload}"""
+    private val legacySale =
+        """{"ts":10,"date":"2026-05-13","subtotal":100,"discount":0,"total":100,"cart":{"p1":1},"bundles":{},"paymentMethod":"CASH","tipAmount":20,"lines":[],"stockDeductions":{"p1":1}}"""
 
-    private fun v1Payload(): JSONObject =
-        JSONObject()
-            .put("products_json", "[]")
-            .put("cart_json", "{}")
+    private val legacyLast =
+        """{"ts":10,"total":120,"cart":{"p1":1},"bundles":{},"stockDeductions":{"p1":1}}"""
+
+    private fun payload() = JSONObject()
+        .put("products_json", "[]")
+        .put("cart_json", "{}")
+        .put("sales_log_json", "[$legacySale]")
+        .put("last_checkout_json", legacyLast)
+
+    private fun envelope(schema: Int, payload: JSONObject = payload()): String =
+        """{"format":"${PosStore.BACKUP_FORMAT_ID}","schemaVersion":$schema,"payload":$payload}"""
 
     @Test
-    fun migrateV1ToV2_addsPayloadSchema() {
-        val migrated = BackupMigration.migratePayloadToCurrent(1, v1Payload())
-        assertEquals(2, migrated.getInt("payloadSchema"))
+    fun schema1Backup_migratesThroughV2ToV3() {
+        val out = parseValidatedBackupPayload(envelope(1))
+        assertEquals(3, out.getInt("payloadSchema"))
+        assertEquals("[]", out.getString("reversal_log_json"))
+        assertTrue(decodeSalesRecordsJson(out.getString("sales_log_json")).single().id.isNotBlank())
+        assertTrue(decodeLastCheckoutJson(out.getString("last_checkout_json"))!!.saleId.isNotBlank())
     }
 
     @Test
-    fun parseValidatedBackupPayload_migratesSchema1Backup() {
-        val out = parseValidatedBackupPayload(v1Envelope())
-        assertEquals(2, out.getInt("payloadSchema"))
-    }
+    fun schema2Backup_addsStableIdsAndLinksUniqueLastCheckout() {
+        val source = payload().put("payloadSchema", 2)
+        val first = parseValidatedBackupPayload(envelope(2, source))
+        val second = parseValidatedBackupPayload(envelope(2, JSONObject(source.toString())))
 
-    @Test
-    fun parseBackupEnvelope_acceptsSchema2Export() {
-        val payload = v1Payload().put("payloadSchema", 2)
-        val json = """{"format":"${PosStore.BACKUP_FORMAT_ID}","schemaVersion":2,"payload":$payload}"""
-        val envelope = parseBackupEnvelope(json)
-        assertEquals(2, envelope.schemaVersion)
-        val parsed = parseValidatedBackupPayload(json)
-        assertEquals(2, parsed.getInt("payloadSchema"))
-    }
-
-    @Test
-    fun migrateV2_isIdentity() {
-        val payload = v1Payload().put("payloadSchema", 2)
-        val same = BackupMigration.migratePayloadToCurrent(2, payload)
-        assertEquals(2, same.getInt("payloadSchema"))
-    }
-
-    /** migrateV1ToV2 冪等：同一 payload 連跑兩次結果相同（模擬還原路徑重入）。 */
-    @Test
-    fun migrateV1ToV2_idempotent_secondPassUnchanged() {
-        val first = BackupMigration.migratePayloadToCurrent(1, v1Payload())
-        val second = BackupMigration.migratePayloadToCurrent(1, JSONObject(first.toString()))
+        assertEquals(3, first.getInt("payloadSchema"))
         assertEquals(first.toString(), second.toString())
+        val saleId = decodeSalesRecordsJson(first.getString("sales_log_json")).single().id
+        assertEquals(saleId, decodeLastCheckoutJson(first.getString("last_checkout_json"))!!.saleId)
     }
 
-    /** 已有 payloadSchema 時不覆寫（即使 envelope 仍標 1）。 */
     @Test
-    fun migrateV1ToV2_doesNotOverwriteExistingPayloadSchema() {
-        val already = v1Payload().put("payloadSchema", 2)
-        val out = BackupMigration.migratePayloadToCurrent(1, already)
-        assertEquals(2, out.getInt("payloadSchema"))
-        assertEquals(already.toString(), out.toString())
+    fun schema3Backup_isIdentity() {
+        val source = payload()
+            .put("payloadSchema", 3)
+            .put("reversal_log_json", "[]")
+        val same = BackupMigration.migratePayloadToCurrent(3, source)
+        assertEquals(source.toString(), same.toString())
     }
 
-    /** v2 匯出檔經 parseValidatedBackupPayload 再解析，payload 不變。 */
     @Test
-    fun parseValidatedBackupPayload_schema2_doubleParseIsStable() {
-        val payload = v1Payload().put("payloadSchema", 2)
-        val json = """{"format":"${PosStore.BACKUP_FORMAT_ID}","schemaVersion":2,"payload":$payload}"""
-        val first = parseValidatedBackupPayload(json)
-        val second = parseValidatedBackupPayload(json)
-        assertEquals(first.toString(), second.toString())
+    fun ambiguousLegacyLastCheckout_isClearedInsteadOfGuessed() {
+        val source = payload()
+            .put("payloadSchema", 2)
+            .put("sales_log_json", "[$legacySale,$legacySale]")
+        val out = BackupMigration.migratePayloadToCurrent(2, source)
+        assertEquals("", out.getString("last_checkout_json"))
+    }
+
+    @Test
+    fun malformedLegacySales_isPreservedAndUndoIsCleared() {
+        val source = payload()
+            .put("payloadSchema", 2)
+            .put("sales_log_json", "not-json")
+        val out = BackupMigration.migratePayloadToCurrent(2, source)
+        assertEquals("not-json", out.getString("sales_log_json"))
+        assertEquals("", out.getString("last_checkout_json"))
+        assertEquals("[]", out.getString("reversal_log_json"))
+    }
+
+    @Test
+    fun validExistingSaleId_remainsStableWhenMigrationRepeats() {
+        val first = BackupMigration.migratePayloadToCurrent(2, payload().put("payloadSchema", 2))
+        val saleId = decodeSalesRecordsJson(first.getString("sales_log_json")).single().id
+        val again = BackupMigration.migratePayloadToCurrent(2, JSONObject(first.toString()).put("payloadSchema", 2))
+        assertEquals(saleId, decodeSalesRecordsJson(again.getString("sales_log_json")).single().id)
+        assertFalse(saleId.isBlank())
     }
 }

@@ -18,11 +18,9 @@ class PosCsvExportAdapter {
     suspend fun writeSalesCsv(
         resolver: ContentResolver,
         uri: Uri,
-        totalSales: Long,
-        txCount: Long,
-        todaySales: Long,
         todayKey: String,
         salesLog: List<SaleRecord>,
+        reversalLog: List<SaleReversal>,
         products: List<Product>,
         bundles: List<Bundle>,
     ): Result<Unit> = withContext(Dispatchers.IO) {
@@ -32,11 +30,9 @@ class PosCsvExportAdapter {
                 BufferedWriter(OutputStreamWriter(os, Charsets.UTF_8)).use { writer ->
                     writePosSalesCsvTo(
                         writer,
-                        totalSales,
-                        txCount,
-                        todaySales,
                         todayKey,
                         salesLog,
+                        reversalLog,
                         products,
                         bundles,
                     )
@@ -52,31 +48,32 @@ class PosCsvExportAdapter {
  */
 internal fun writePosSalesCsvTo(
     writer: BufferedWriter,
-    ts: Long,
-    count: Long,
-    tdy: Long,
     todayKey: String,
     log: List<SaleRecord>,
+    reversals: List<SaleReversal>,
     prods: List<Product>,
     bundles: List<Bundle>,
 ) {
+    val effectiveSales = activeSales(log, reversals)
+    val totalSales = effectiveSales.sumOf { it.total + it.tipAmount }
+    val todaySales = effectiveSales.filter { it.dateKey == todayKey }.sumOf { it.total + it.tipAmount }
     val pm = prods.associateBy { it.id }
     val bm = bundles.associateBy { it.id }
     fun escape(s: String) = "\"${s.replace("\"", "\"\"")}\""
     writer.write("資料夾,欄位,數值/明細")
     writer.newLine()
-    writer.write("報表,累積總額,$ts")
+    writer.write("報表,累積總額,$totalSales")
     writer.newLine()
-    writer.write("報表,累積筆數,$count")
+    writer.write("報表,累積筆數,${effectiveSales.size}")
     writer.newLine()
-    writer.write("報表,今日營收($todayKey),$tdy")
+    writer.write("報表,今日營收($todayKey),$todaySales")
     writer.newLine()
-    writer.write("報表,CSV明細,全部SaleRecord")
+    writer.write("報表,CSV明細,有效交易")
     writer.newLine()
     writer.newLine()
     writer.write("時間戳,日期,付款方式,小計,折扣,總額,小費,購買明細")
     writer.newLine()
-    log.forEach { r ->
+    effectiveSales.forEach { r ->
         val details = formatSaleRecordDetailsForCsv(r, pm, bm)
         val payLabel = when (r.paymentMethod) {
             PaymentMethod.CASH    -> "現金"
@@ -88,17 +85,15 @@ internal fun writePosSalesCsvTo(
 }
 
 internal fun buildPosSalesCsv(
-    ts: Long,
-    count: Long,
-    tdy: Long,
     todayKey: String,
     log: List<SaleRecord>,
+    reversals: List<SaleReversal>,
     prods: List<Product>,
     bundles: List<Bundle>,
 ): String {
     val sw = StringWriter()
     BufferedWriter(sw).use { writer ->
-        writePosSalesCsvTo(writer, ts, count, tdy, todayKey, log, prods, bundles)
+        writePosSalesCsvTo(writer, todayKey, log, reversals, prods, bundles)
     }
     return sw.toString()
 }

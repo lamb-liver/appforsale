@@ -18,11 +18,9 @@ internal fun PosViewModel.exportCsv(target: DocumentTarget) {
             posCsvExport.writeSalesCsv(
                 getApplication<Application>().contentResolver,
                 uri,
-                state.totalSales,
-                state.txCount,
-                state.todaySales,
                 state.todayKey,
                 state.salesLog.toList(),
+                state.reversalLog.toList(),
                 state.products.toList(),
                 state.bundles.toList(),
             ).getOrThrow()

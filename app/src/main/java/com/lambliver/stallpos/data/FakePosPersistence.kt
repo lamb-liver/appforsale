@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import org.json.JSONObject
+import java.util.UUID
 
 /**
  * 記憶體版 [PosPersistence]，供單元測試 mock 單一 seam。
@@ -30,6 +31,7 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
     override val totalSalesFlow: Flow<Long> = state.map { it.totalSales }
     override val txCountFlow: Flow<Long> = state.map { it.txCount }
     override val salesLogFlow: Flow<List<SaleRecord>> = state.map { it.salesLog }
+    override val reversalLogFlow: Flow<List<SaleReversal>> = state.map { it.reversalLog }
     override val lastCheckoutFlow: Flow<LastCheckout?> = state.map { it.lastCheckout }
 
     override suspend fun applyCatalog(plan: CatalogPersistPlan) {
@@ -57,6 +59,7 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
         require(request.total >= 0L) { "checkout total must be non-negative, got ${request.total}" }
         val tip = request.tipAmount.coerceAtLeast(0L)
         val now = System.currentTimeMillis()
+        val saleId = UUID.randomUUID().toString()
         state.update { cur ->
             val products = cur.products
             val resolvedLines =
@@ -67,6 +70,7 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
                     ?: request.productCart.mapValues { it.value.toLong() }
 
             val record = SaleRecord(
+                id = saleId,
                 tsMillis = now,
                 dateKey = request.dateKey,
                 subtotal = request.subtotal,
@@ -88,27 +92,31 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
 
             val log = cur.salesLog.toMutableList()
             log.add(record)
-            val trimmed = if (log.size > 5000) log.takeLast(5000) else log
-
             cur.copy(
                 products = deducted,
                 cart = PosCart(),
                 lastCheckout = LastCheckout(
-                    now,
-                    request.total + tip,
-                    request.productCart,
-                    request.bundleCart,
-                    resolvedDeductions,
+                    saleId = saleId,
+                    tsMillis = now,
+                    total = request.total + tip,
+                    productCart = request.productCart,
+                    bundleCart = request.bundleCart,
+                    stockDeductions = resolvedDeductions,
                 ),
                 totalSales = cur.totalSales + request.total + tip,
                 txCount = cur.txCount + 1,
-                salesLog = trimmed,
+                salesLog = log,
             )
         }
     }
 
     override suspend fun undoLastCheckout() {
-        state.update { cur -> cur.applyUndoIfPossible() ?: cur }
+        state.update { cur ->
+            cur.applyUndoIfPossible(
+                reversalId = UUID.randomUUID().toString(),
+                reversedAtMillis = System.currentTimeMillis(),
+            ) ?: cur
+        }
     }
 
     override suspend fun exportFullBackupJson(): String {
@@ -121,6 +129,7 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
             put("bundles_json", encodeBundles(cur.bundles))
             put("cart_json", encodePosCartJson(cur.cart))
             put("sales_log_json", encodeSalesRecordsJson(cur.salesLog))
+            put("reversal_log_json", encodeSaleReversalsJson(cur.reversalLog))
             put("last_checkout_json", cur.lastCheckout?.let { encodeLastCheckoutJson(it) } ?: "")
             put("total_sales", cur.totalSales)
             put("tx_count", cur.txCount)
@@ -135,14 +144,19 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
 
     override suspend fun restoreFullBackupJson(jsonText: String): Result<Unit> = runCatching {
         val payload = parseValidatedBackupPayload(jsonText)
+        val sales = decodeSalesRecordsJson(payload.optString("sales_log_json", ""))
         state.value = PosPersistSnapshot(
             products = decodeProducts(payload.optString("products_json", "")),
             categories = decodeCategories(payload.optString("categories_json", "")),
             bundleCategories = decodeBundleCategories(payload.optString("bundle_categories_json", "")),
             bundles = decodeBundles(payload.optString("bundles_json", "")),
             cart = decodePosCartJson(payload.optString("cart_json", "")),
-            salesLog = decodeSalesRecordsJson(payload.optString("sales_log_json", "")),
-            lastCheckout = decodeLastCheckoutJson(payload.optString("last_checkout_json", "")),
+            salesLog = sales,
+            reversalLog = decodeSaleReversalsJson(payload.optString("reversal_log_json", "[]")),
+            lastCheckout = linkLastCheckoutToSales(
+                decodeLastCheckoutJson(payload.optString("last_checkout_json", "")),
+                sales,
+            ),
             totalSales = payload.optLong("total_sales", 0L).coerceAtLeast(0L),
             txCount = payload.optLong("tx_count", 0L).coerceAtLeast(0L),
         )

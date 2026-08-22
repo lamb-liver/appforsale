@@ -1,6 +1,6 @@
 # 小攤位 · 市集 POS
 
-**版本：v1.2.0**（`VERSION` · `versionName` · [Releases](https://github.com/lamb-liver/appforsale/releases/tag/v1.2.0)）
+**版本：v1.3.0**（`VERSION` · `versionName`）
 
 **離線可用的 Android 結帳 app**：快選商品／套組、現場收款、紀錄今日營收；刻意不做進銷存或複雜後台。
 
@@ -17,8 +17,8 @@
 | 庫存 | 可選追蹤庫存；套組與單品共用庫存規則 |
 | 操作回饋 | 震動 + 音效（加入購物車／結帳成功／錯誤）；設定選單可獨立開關；靜音／震動模式只震不響 |
 | 今日儀表 | 當日營收與筆數摘要 |
-| 復原 | 結帳成功後短時間內可復原上一筆 |
-| CSV 匯出 | 頂列檔案圖示 → SAF 選路徑存檔 → 成功後系統分享選單（Line、Drive、Email 等） |
+| 復原 | 結帳成功後可復原上一筆；庫存、購物車與營收立即還原 |
+| CSV 匯出 | 僅列有效交易的易讀報表；頂列檔案圖示 → SAF 選路徑存檔 → 系統分享選單 |
 | JSON 備份／還原 | 設定選單完整備份與還原（`PosStore` 全狀態） |
 | 贊助開發者 | 自願支持（30／99／150 元）；設定選單 → 綠界付款頁（外部瀏覽器），與攤位結帳無關 |
 
@@ -84,8 +84,8 @@ stallpos/
 | `PosCheckoutCoordinatorTest` | 結帳對帳、小計競態、庫存不足 |
 | `PosCartCoordinatorTest` | 購物車加減品、庫存上限、clamp |
 | `PosViewModelCheckoutTest` | VM 結帳成功／失敗還原／對帳拒絕（Robolectric + [FakePosPersistence]） |
-| `PosUndoCoordinatorTest` | 上一筆結帳復原規則、庫存還原 fallback |
-| `BackupMigrationTest` | 備份 schema 1→2 遷移、冪等性、還原 |
+| `PosUndoCoordinatorTest` | append-only 復原規則、孤兒／重複拒絕、庫存還原 fallback |
+| `BackupMigrationTest` | 備份 schema 1／2→3、stable ID、LastCheckout 配對與冪等性 |
 | `PosBackupPayloadTest` | 備份 envelope `parseBackupEnvelope`（純 JVM） |
 | `PosFeedbackManagerTest` | 音效播放條件（`shouldPlaySound`：NORMAL / VIBRATE / SILENT） |
 | `CheckoutBottomSheetComposeTest` | 結帳 sheet 互動（Robolectric Compose） |
@@ -99,9 +99,9 @@ stallpos/
 | 欄位 | 層級 | 職責 |
 |------|------|------|
 | **`schemaVersion`** | Envelope（備份檔根物件） | `parseBackupEnvelope` 驗證與遷移步驟編排（見 `BackupMigration`） |
-| **`payloadSchema`** | `payload` 物件內 | 業務資料束（`products_json` 等）形狀；`migrateV1ToV2` 僅補此標記 |
+| **`payloadSchema`** | `payload` 物件內 | 業務資料束形狀；v3 新增 Sale ID、`reversal_log_json` 與 LastCheckout 關聯 |
 
-現行皆為 **2**。舊 **schemaVersion: 1** 備份還原時由 `parseValidatedBackupPayload` 自動遷移；`migrateV1ToV2` **冪等**（已有 `payloadSchema` 不再寫入）。語意詳見 `docs/CONTEXT.md` 與 `data/BackupMigration.kt`。
+現行皆為 **3**。舊 **schemaVersion: 1／2** 備份還原時由 `parseValidatedBackupPayload` 依序遷移；v2→v3 會產生 deterministic legacy Sale ID、只在唯一匹配時補 `LastCheckout.saleId`，並初始化空 Reversal log。語意詳見 `docs/CONTEXT.md` 與 `data/BackupMigration.kt`。
 
 儀表測試（需模擬器／裝置）：`PosStoreInstrumentedTest`（DataStore 結帳／復原端到端）。
 
@@ -112,6 +112,7 @@ stallpos/
 - [ADR-0001 — DataStore + JSON 集中狀態](docs/adr/0001-pos-state-in-datastore-json.md)
 - [ADR-0002 — 結帳確認點對帳](docs/adr/0002-checkout-reconcile-at-confirm.md)
 - [ADR-0003 — 購物車記憶體 + debounce 寫碟](docs/adr/0003-cart-memory-with-debounced-disk-flush.md)
+- [ADR-0004 — Append-only Sales 與 Reversals](docs/adr/0004-append-only-sales-and-reversals.md)
 
 結帳金額語意：`docs/phase-a-checkout-money-flow.md`。
 
