@@ -13,6 +13,7 @@ import com.lambliver.stallpos.data.PosCsvExportAdapter
 import com.lambliver.stallpos.data.PosPersistSnapshot
 import com.lambliver.stallpos.data.PosPersistence
 import com.lambliver.stallpos.data.RoomPosPersistence
+import com.lambliver.stallpos.data.CloudAccountManager
 import com.lambliver.stallpos.domain.*
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
@@ -162,6 +163,21 @@ class PosViewModel @JvmOverloads constructor(
 
     fun setSoundEnabled(enabled: Boolean) {
         viewModelScope.launch { appUiPrefs.setSoundEnabled(enabled) }
+    }
+
+    internal suspend fun signInWithGoogleIdToken(idToken: String) {
+        val room = posStore as? RoomPosPersistence ?: error("Google login requires Room persistence")
+        try {
+            CloudAccountManager(getApplication(), room).signIn(idToken)
+            emitToast("Google 雲端登入成功", PosToastSeverity.Info)
+        } catch (e: Throwable) {
+            Log.e(LOG_TAG, "Google cloud login failed", e)
+            emitToast("Google 雲端登入失敗：${e.message}", PosToastSeverity.Error)
+        }
+    }
+
+    internal suspend fun reportGoogleSignInFailure(message: String?) {
+        emitToast("Google 登入未完成：${message ?: "請稍後再試"}", PosToastSeverity.Error)
     }
 
     private fun startObserving() {

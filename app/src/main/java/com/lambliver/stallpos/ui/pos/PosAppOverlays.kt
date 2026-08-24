@@ -60,6 +60,8 @@ internal fun PosAppOverlays(
     onDismissRestoreConfirm: () -> Unit,
     onConfirmRestore: (Uri) -> Unit,
     feedback: PosFeedbackManager,
+    cloudLoginConfigured: Boolean,
+    onGoogleSignIn: () -> Unit,
 ) {
     SponsorDeveloperBottomSheet(
         visible = sheetOverlay == PosSheetOverlay.Sponsor,
@@ -71,6 +73,8 @@ internal fun PosAppOverlays(
             uiState = uiState,
             onDismiss = onDismissSponsorSheet,
             onEvent = vm::onEvent,
+            cloudLoginConfigured = cloudLoginConfigured,
+            onGoogleSignIn = onGoogleSignIn,
         )
     }
 

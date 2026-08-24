@@ -164,6 +164,31 @@ class SyncOutboxInstrumentedTest {
         assertTrue(payload.isNull("eventId"))
     }
 
+    @Test
+    fun expiredAccessToken_rotatesOnceBeforeRetryingTheSameBatch() = runBlocking {
+        val productId = UUID.randomUUID().toString()
+        store.applyCatalog(CatalogPersistPlan(products = listOf(Product(productId, "Refresh", 10))))
+        configureSyncSession(database, "https://stallpos.test", "expired", UUID.randomUUID().toString(), 1)
+        val tokens = mutableListOf<String>()
+        val transport = SyncTransport { _, token, body ->
+            tokens += token
+            if (token == "expired") SyncHttpResponse(401, "{}") else {
+                val request = JSONObject(body)
+                val operations = request.getJSONArray("operations")
+                val results = JSONArray()
+                repeat(operations.length()) { index ->
+                    results.put(JSONObject()
+                        .put("operationId", operations.getJSONObject(index).getString("operationId"))
+                        .put("status", "ACK"))
+                }
+                SyncHttpResponse(200, JSONObject().put("requestId", request.getString("requestId")).put("results", results).toString())
+            }
+        }
+        val engine = SyncEngine(database, transport, refreshAccessToken = { "rotated" })
+        assertEquals(SyncRunResult.SUCCESS, engine.runOnce())
+        assertEquals(listOf("expired", "rotated"), tokens)
+    }
+
     private fun checkout(productId: String) = CheckoutWriteRequest(
         productCart = mapOf(productId to 1),
         bundleCart = emptyMap(),

@@ -7,6 +7,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.CustomCredential
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.lambliver.stallpos.BuildConfig
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lambliver.stallpos.domain.PosToastSeverity
@@ -15,6 +22,8 @@ import com.lambliver.stallpos.ui.pos.PosAppShell
 import com.lambliver.stallpos.ui.pos.rememberPosOverlayState
 import java.text.NumberFormat
 import java.util.Locale
+import java.util.UUID
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,6 +32,8 @@ fun PosApp(vm: PosViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.TAIWAN) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val credentialManager = remember { CredentialManager.create(context) }
     val overlay = rememberPosOverlayState(scope)
 
     val hapticEnabled by vm.hapticEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
@@ -49,5 +60,22 @@ fun PosApp(vm: PosViewModel = viewModel()) {
         soundEnabled = soundEnabled,
         onHapticEnabledChange = vm::setHapticEnabled,
         onSoundEnabledChange = vm::setSoundEnabled,
+        cloudLoginConfigured = BuildConfig.SYNC_BASE_URL.isNotBlank() && BuildConfig.GOOGLE_SERVER_CLIENT_ID.isNotBlank(),
+        onGoogleSignIn = {
+            scope.launch {
+                runCatching {
+                    val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_SERVER_CLIENT_ID)
+                        .setNonce(UUID.randomUUID().toString())
+                        .build()
+                    val credential = credentialManager.getCredential(
+                        context,
+                        GetCredentialRequest.Builder().addCredentialOption(option).build(),
+                    ).credential
+                    require(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL)
+                    GoogleIdTokenCredential.createFrom(credential.data).idToken
+                }.onSuccess { vm.signInWithGoogleIdToken(it) }
+                    .onFailure { vm.reportGoogleSignInFailure(it.message) }
+            }
+        },
     )
 }

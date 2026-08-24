@@ -38,8 +38,26 @@ Persistent local status is `PENDING`, `SYNCED`, or `BLOCKED`. `SYNCING` is UI
 state only. Server results are `ACK`, `RETRY`, or `BLOCKED`.
 
 Stable blocked codes are `DEVICE_RETIRED`, `CLOUD_EPOCH_REVOKED`,
-`INVALID_DATA`, and `SERVER_CONFLICT`. Transient network/timeout/5xx failures
+`ACCOUNT_DELETED`, `INVALID_DATA`, and `SERVER_CONFLICT`. Transient network/timeout/5xx failures
 remain local `PENDING` and are not converted to permanent blocked data.
+
+## Auth, device, and deletion lifecycle
+
+- `POST /v2/auth/google` verifies the Google signature and claims before accepting
+  `sub`; it returns a 15-minute access token plus a rotating refresh credential.
+- `POST /v2/auth/refresh` consumes exactly one refresh generation. Reusing a
+  rotated credential fails.
+- Normal replacement uses `POST /v2/devices/transfer`, `/claim`, then `/commit`.
+  The old device remains `ACTIVE` until the new device has atomically stored and
+  validated bootstrap data.
+- Forced login must explicitly set `forceDevice`; the former device becomes
+  `RETIRED` and its pending local operations become blocked on its next request.
+- `DELETE /v2/account/cloud` and `DELETE /v2/account` append to `DELETION_DB`
+  before mutating `POS_DB`. A `202 DELETION_PENDING` still means the barrier is
+  active and scheduled reconciliation must finish cleanup.
+- Re-enable requires explicit `REENABLE`; account recreation after deletion
+  requires `CREATE_AFTER_DELETE` and creates a generation newer than the latest
+  tombstone.
 
 ## Canonical payloads
 

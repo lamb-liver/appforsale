@@ -590,6 +590,87 @@ internal class RoomPosPersistence(
         }
     }
 
+    internal suspend fun localDeviceId(): String = database.withTransaction {
+        deviceStateOrCreate(System.currentTimeMillis()).deviceId
+    }
+
+    internal suspend fun activateCloudSession(
+        baseUrl: String,
+        accessToken: String,
+        refreshToken: String,
+        userId: String,
+        deviceId: String,
+        cloudEpoch: Long,
+        resetBaseline: Boolean,
+    ) {
+        val snapshot = if (resetBaseline) readSnapshot() else null
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            v2Dao.putCloudState(
+                listOf(
+                    CloudStateEntity(SyncCloudKeys.BASE_URL, baseUrl.trimEnd('/')),
+                    CloudStateEntity(SyncCloudKeys.ACCESS_TOKEN, accessToken),
+                    CloudStateEntity(SyncCloudKeys.REFRESH_TOKEN, refreshToken),
+                    CloudStateEntity(SyncCloudKeys.USER_ID, userId),
+                ),
+            )
+            val previous = v2Dao.deviceState()
+            v2Dao.putDeviceState(
+                DeviceStateEntity(
+                    deviceId = deviceId,
+                    shortCode = previous?.shortCode ?: "A",
+                    name = android.os.Build.MODEL.take(100).ifBlank { "Android" },
+                    status = "ACTIVE",
+                    cloudEpoch = cloudEpoch,
+                    registeredAtMillis = previous?.registeredAtMillis ?: now,
+                    lastSeenAtMillis = now,
+                    retiredAtMillis = null,
+                ),
+            )
+            if (snapshot != null) enqueueBaseline(snapshot, now)
+        }
+        SyncScheduler.enqueue(appContext)
+    }
+
+    internal suspend fun restoreCloudBootstrap(snapshot: PosPersistSnapshot, commitToken: String) {
+        database.withTransaction {
+            replaceBusinessData(snapshot)
+            v2Dao.deleteAllOutbox()
+            v2Dao.putCloudState(listOf(CloudStateEntity(SyncCloudKeys.TRANSFER_COMMIT_TOKEN, commitToken)))
+        }
+    }
+
+    private suspend fun enqueueBaseline(snapshot: PosPersistSnapshot, now: Long) {
+        v2Dao.deleteAllOutbox()
+        snapshot.categories.forEachIndexed { index, row ->
+            v2Dao.enqueueSyncOperation("MASTER", "CATEGORY", row.id, "UPSERT", row.toSyncJson("PRODUCT", index, now), now)
+        }
+        snapshot.bundleCategories.forEachIndexed { index, row ->
+            v2Dao.enqueueSyncOperation("MASTER", "CATEGORY", row.id, "UPSERT", row.toSyncJson(index, now), now)
+        }
+        snapshot.products.forEach { row ->
+            v2Dao.enqueueSyncOperation("MASTER", "PRODUCT", row.id, "UPSERT", row.toSyncJson(now), now)
+        }
+        snapshot.bundles.forEach { row ->
+            v2Dao.enqueueSyncOperation("MASTER", "BUNDLE", row.id, "UPSERT", row.toSyncJson(now), now)
+        }
+        snapshot.events.forEach { row ->
+            v2Dao.enqueueSyncOperation("MASTER", "EVENT", row.id, "UPSERT", row.toEntity().toSyncJson(), now)
+        }
+        snapshot.inventoryMovements.forEach { row ->
+            v2Dao.enqueueSyncOperation("INVENTORY", "INVENTORY_MOVEMENT", row.id, "APPEND", row.toEntity().toSyncJson(), now)
+        }
+        snapshot.salesLog.forEach { sale ->
+            val movements = snapshot.inventoryMovements.filter { it.relatedTransactionId == sale.id }.map { it.toEntity() }
+            v2Dao.enqueueSyncOperation("TRANSACTION", "SALE", sale.id, "APPEND", sale.toSyncJson(movements), now)
+        }
+        snapshot.reversalLog.forEach { reversal ->
+            val movements = snapshot.inventoryMovements.filter { it.relatedTransactionId == reversal.saleId && it.type == InventoryMovementType.VOID }
+                .map { it.toEntity() }
+            v2Dao.enqueueSyncOperation("TRANSACTION", "VOID", reversal.id, "APPEND", reversal.toSyncJson(movements), now)
+        }
+    }
+
     private suspend fun replaceBusinessData(snap: PosPersistSnapshot) {
         dao.deleteLastCheckout()
         v2Dao.deleteAllReversalMeta()

@@ -11,6 +11,8 @@ const POS_TABLES = [
   "bundles",
   "products",
   "categories",
+  "device_transfers",
+  "refresh_credentials",
   "sessions",
   "devices",
   "users",

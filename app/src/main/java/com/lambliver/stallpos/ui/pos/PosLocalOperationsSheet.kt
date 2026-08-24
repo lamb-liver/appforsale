@@ -41,6 +41,8 @@ internal fun LocalOperationsBottomSheet(
     uiState: PosUiState,
     onDismiss: () -> Unit,
     onEvent: (PosEvent) -> Unit,
+    cloudLoginConfigured: Boolean = false,
+    onGoogleSignIn: () -> Unit = {},
 ) {
     var eventName by rememberSaveable { mutableStateOf("") }
     var eventLocation by rememberSaveable { mutableStateOf("") }
@@ -67,6 +69,13 @@ internal fun LocalOperationsBottomSheet(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                OutlinedButton(
+                    onClick = onGoogleSignIn,
+                    enabled = cloudLoginConfigured,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) {
+                    Text(if (cloudLoginConfigured) "使用 Google 登入雲端" else "雲端登入尚未設定")
+                }
             }
 
             if (uiState.products.any { it.cost == null }) {
