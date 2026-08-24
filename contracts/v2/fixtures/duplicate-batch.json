@@ -1,0 +1,66 @@
+{
+  "requestId": "10000000-0000-4000-8000-000000000003",
+  "deviceId": "20000000-0000-4000-8000-000000000001",
+  "cloudEpoch": 1,
+  "operations": [
+    {
+      "operationId": "30000000-0000-4000-8000-000000000010",
+      "category": "TRANSACTION",
+      "entityType": "SALE",
+      "entityId": "90000000-0000-4000-8000-000000000001",
+      "operationType": "APPEND",
+      "payload": {
+        "id": "90000000-0000-4000-8000-000000000001",
+        "deviceId": "20000000-0000-4000-8000-000000000001",
+        "eventId": "70000000-0000-4000-8000-000000000001",
+        "receiptNumber": "CWT74-A-0001",
+        "occurredAtUtc": "2026-08-29T03:15:00Z",
+        "subtotal": 100,
+        "discountType": "FIXED_AMOUNT",
+        "discountValue": 10,
+        "discountAmount": 10,
+        "netAdjustment": 0,
+        "finalTotal": 90,
+        "tipAmount": 10,
+        "paymentMethod": "LINE_PAY",
+        "lines": [
+          {
+            "lineIndex": 0,
+            "itemType": "BUNDLE",
+            "itemRefId": "60000000-0000-4000-8000-000000000001",
+            "displayName": "徽章兩入組",
+            "quantity": 1,
+            "unitPrice": 100,
+            "originalAmount": 100,
+            "allocatedDiscount": 10,
+            "allocatedAdjustment": 0,
+            "finalAmount": 90
+          }
+        ],
+        "componentAllocations": [
+          {
+            "lineIndex": 0,
+            "productId": "50000000-0000-4000-8000-000000000001",
+            "productNameSnapshot": "生日徽章",
+            "unitCostSnapshot": 25,
+            "quantity": 2,
+            "allocatedRevenue": 90
+          }
+        ],
+        "inventoryMovements": [
+          {
+            "id": "80000000-0000-4000-8000-000000000010",
+            "productId": "50000000-0000-4000-8000-000000000001",
+            "eventId": "70000000-0000-4000-8000-000000000001",
+            "fromLocation": { "type": "EVENT", "eventId": "70000000-0000-4000-8000-000000000001" },
+            "toLocation": null,
+            "type": "SALE",
+            "quantity": 2,
+            "relatedTransactionId": "90000000-0000-4000-8000-000000000001",
+            "occurredAtUtc": "2026-08-29T03:15:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}

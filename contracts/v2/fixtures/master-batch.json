@@ -1,0 +1,113 @@
+{
+  "requestId": "10000000-0000-4000-8000-000000000001",
+  "deviceId": "20000000-0000-4000-8000-000000000001",
+  "cloudEpoch": 1,
+  "operations": [
+    {
+      "operationId": "30000000-0000-4000-8000-000000000001",
+      "category": "MASTER",
+      "entityType": "CATEGORY",
+      "entityId": "40000000-0000-4000-8000-000000000001",
+      "operationType": "UPSERT",
+      "payload": {
+        "id": "40000000-0000-4000-8000-000000000001",
+        "categoryType": "PRODUCT",
+        "name": "徽章",
+        "sortOrder": 0,
+        "updatedAtUtc": "2026-08-24T01:00:00Z",
+        "deletedAtUtc": null
+      }
+    },
+    {
+      "operationId": "30000000-0000-4000-8000-000000000002",
+      "category": "MASTER",
+      "entityType": "CATEGORY",
+      "entityId": "40000000-0000-4000-8000-000000000002",
+      "operationType": "UPSERT",
+      "payload": {
+        "id": "40000000-0000-4000-8000-000000000002",
+        "categoryType": "BUNDLE",
+        "name": "組合",
+        "sortOrder": 0,
+        "updatedAtUtc": "2026-08-24T01:00:01Z",
+        "deletedAtUtc": null
+      }
+    },
+    {
+      "operationId": "30000000-0000-4000-8000-000000000006",
+      "category": "MASTER",
+      "entityType": "PRODUCT",
+      "entityId": "50000000-0000-4000-8000-000000000001",
+      "operationType": "UPSERT",
+      "payload": {
+        "id": "50000000-0000-4000-8000-000000000001",
+        "name": "生日徽章",
+        "sellingPrice": 60,
+        "cost": 25,
+        "categoryId": "40000000-0000-4000-8000-000000000001",
+        "trackInventory": true,
+        "isActive": true,
+        "updatedAtUtc": "2026-08-24T01:00:01Z",
+        "deletedAtUtc": null
+      }
+    },
+    {
+      "operationId": "30000000-0000-4000-8000-000000000003",
+      "category": "MASTER",
+      "entityType": "BUNDLE",
+      "entityId": "60000000-0000-4000-8000-000000000001",
+      "operationType": "UPSERT",
+      "payload": {
+        "id": "60000000-0000-4000-8000-000000000001",
+        "name": "徽章兩入組",
+        "sellingPrice": 100,
+        "categoryId": "40000000-0000-4000-8000-000000000002",
+        "isActive": true,
+        "components": [
+          { "productId": "50000000-0000-4000-8000-000000000001", "quantity": 2 }
+        ],
+        "updatedAtUtc": "2026-08-24T01:00:02Z",
+        "deletedAtUtc": null
+      }
+    },
+    {
+      "operationId": "30000000-0000-4000-8000-000000000004",
+      "category": "MASTER",
+      "entityType": "EVENT",
+      "entityId": "70000000-0000-4000-8000-000000000001",
+      "operationType": "UPSERT",
+      "payload": {
+        "id": "70000000-0000-4000-8000-000000000001",
+        "name": "CWT74",
+        "code": "CWT74",
+        "eventType": "CONVENTION",
+        "startAtUtc": "2026-08-29T02:00:00Z",
+        "endAtUtc": "2026-08-29T10:00:00Z",
+        "actualOpenAtUtc": null,
+        "actualCloseAtUtc": null,
+        "timezone": "Asia/Taipei",
+        "location": "台大體育館",
+        "status": "PLANNED",
+        "updatedAtUtc": "2026-08-24T01:00:03Z"
+      }
+    },
+    {
+      "operationId": "30000000-0000-4000-8000-000000000005",
+      "category": "INVENTORY",
+      "entityType": "INVENTORY_MOVEMENT",
+      "entityId": "80000000-0000-4000-8000-000000000001",
+      "operationType": "APPEND",
+      "payload": {
+        "id": "80000000-0000-4000-8000-000000000001",
+        "productId": "50000000-0000-4000-8000-000000000001",
+        "eventId": null,
+        "fromLocation": null,
+        "toLocation": { "type": "GENERAL", "eventId": null },
+        "type": "ADJUSTMENT",
+        "quantity": 20,
+        "relatedTransactionId": null,
+        "occurredAtUtc": "2026-08-24T01:00:04Z"
+      }
+    }
+  ]
+}

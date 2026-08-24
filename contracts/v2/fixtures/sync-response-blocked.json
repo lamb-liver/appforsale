@@ -1,0 +1,17 @@
+{
+  "requestId": "10000000-0000-4000-8000-000000000005",
+  "results": [
+    {
+      "operationId": "30000000-0000-4000-8000-000000000001",
+      "status": "ACK",
+      "code": null,
+      "message": null
+    },
+    {
+      "operationId": "30000000-0000-4000-8000-000000000020",
+      "status": "BLOCKED",
+      "code": "DEVICE_RETIRED",
+      "message": "此裝置已退役，資料仍保存在本機。"
+    }
+  ]
+}

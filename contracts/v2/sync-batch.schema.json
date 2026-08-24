@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stallpos.app/contracts/v2/sync-batch.schema.json",
+  "title": "StallPOS v2 SyncBatchRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requestId", "deviceId", "cloudEpoch", "operations"],
+  "properties": {
+    "requestId": { "$ref": "#/$defs/uuid" },
+    "deviceId": { "$ref": "#/$defs/uuid" },
+    "cloudEpoch": { "type": "integer", "minimum": 0 },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/operation" }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "utc": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "money": { "type": "integer", "minimum": 0, "maximum": 9999999 },
+    "nullableMoney": { "oneOf": [{ "$ref": "#/$defs/money" }, { "type": "null" }] },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId", "category", "entityType", "entityId", "operationType", "payload"],
+      "properties": {
+        "operationId": { "$ref": "#/$defs/uuid" },
+        "category": { "enum": ["MASTER", "INVENTORY", "TRANSACTION"] },
+        "entityType": { "enum": ["CATEGORY", "PRODUCT", "BUNDLE", "EVENT", "INVENTORY_MOVEMENT", "SALE", "VOID"] },
+        "entityId": { "$ref": "#/$defs/uuid" },
+        "operationType": { "enum": ["UPSERT", "DELETE", "APPEND"] },
+        "payload": {
+          "oneOf": [
+            { "$ref": "#/$defs/category" },
+            { "$ref": "#/$defs/product" },
+            { "$ref": "#/$defs/bundle" },
+            { "$ref": "#/$defs/event" },
+            { "$ref": "#/$defs/inventoryMovement" },
+            { "$ref": "#/$defs/sale" },
+            { "$ref": "#/$defs/void" }
+          ]
+        }
+      }
+    },
+    "category": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "categoryType", "name", "sortOrder", "updatedAtUtc", "deletedAtUtc"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "categoryType": { "enum": ["PRODUCT", "BUNDLE"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "sortOrder": { "type": "integer", "minimum": 0 },
+        "updatedAtUtc": { "$ref": "#/$defs/utc" },
+        "deletedAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] }
+      }
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "sellingPrice", "cost", "categoryId", "trackInventory", "isActive", "updatedAtUtc", "deletedAtUtc"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "sellingPrice": { "$ref": "#/$defs/money" },
+        "cost": { "$ref": "#/$defs/nullableMoney" },
+        "categoryId": { "$ref": "#/$defs/uuid" },
+        "trackInventory": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "updatedAtUtc": { "$ref": "#/$defs/utc" },
+        "deletedAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] }
+      }
+    },
+    "bundleComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productId", "quantity"],
+      "properties": {
+        "productId": { "$ref": "#/$defs/uuid" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 10000 }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "sellingPrice", "categoryId", "isActive", "components", "updatedAtUtc", "deletedAtUtc"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "sellingPrice": { "$ref": "#/$defs/money" },
+        "categoryId": { "$ref": "#/$defs/uuid" },
+        "isActive": { "type": "boolean" },
+        "components": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/bundleComponent" } },
+        "updatedAtUtc": { "$ref": "#/$defs/utc" },
+        "deletedAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "code", "eventType", "startAtUtc", "endAtUtc", "actualOpenAtUtc", "actualCloseAtUtc", "timezone", "location", "status", "updatedAtUtc"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "code": { "type": "string", "pattern": "^[A-Z0-9-]{2,12}$" },
+        "eventType": { "enum": ["CONVENTION", "MARKET", "POPUP", "OTHER"] },
+        "startAtUtc": { "$ref": "#/$defs/utc" },
+        "endAtUtc": { "$ref": "#/$defs/utc" },
+        "actualOpenAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] },
+        "actualCloseAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] },
+        "timezone": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "location": { "type": "string", "maxLength": 200 },
+        "status": { "enum": ["PLANNED", "ACTIVE", "CLOSED"] },
+        "updatedAtUtc": { "$ref": "#/$defs/utc" }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "eventId"],
+      "properties": {
+        "type": { "enum": ["GENERAL", "EVENT"] },
+        "eventId": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] }
+      }
+    },
+    "inventoryMovement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "productId", "eventId", "fromLocation", "toLocation", "type", "quantity", "relatedTransactionId", "occurredAtUtc"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "productId": { "$ref": "#/$defs/uuid" },
+        "eventId": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "fromLocation": { "oneOf": [{ "$ref": "#/$defs/location" }, { "type": "null" }] },
+        "toLocation": { "oneOf": [{ "$ref": "#/$defs/location" }, { "type": "null" }] },
+        "type": { "enum": ["ALLOCATE_TO_EVENT", "SALE", "VOID", "RETURN_FROM_EVENT", "DAMAGE", "ADJUSTMENT"] },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "relatedTransactionId": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "occurredAtUtc": { "$ref": "#/$defs/utc" }
+      }
+    },
+    "saleLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lineIndex", "itemType", "itemRefId", "displayName", "quantity", "unitPrice", "originalAmount", "allocatedDiscount", "allocatedAdjustment", "finalAmount"],
+      "properties": {
+        "lineIndex": { "type": "integer", "minimum": 0 },
+        "itemType": { "enum": ["PRODUCT", "BUNDLE"] },
+        "itemRefId": { "$ref": "#/$defs/uuid" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "unitPrice": { "$ref": "#/$defs/money" },
+        "originalAmount": { "$ref": "#/$defs/money" },
+        "allocatedDiscount": { "$ref": "#/$defs/money" },
+        "allocatedAdjustment": { "type": "integer", "minimum": -9999999, "maximum": 9999999 },
+        "finalAmount": { "$ref": "#/$defs/money" }
+      }
+    },
+    "componentAllocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lineIndex", "productId", "productNameSnapshot", "unitCostSnapshot", "quantity", "allocatedRevenue"],
+      "properties": {
+        "lineIndex": { "type": "integer", "minimum": 0 },
+        "productId": { "$ref": "#/$defs/uuid" },
+        "productNameSnapshot": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "unitCostSnapshot": { "$ref": "#/$defs/nullableMoney" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "allocatedRevenue": { "$ref": "#/$defs/money" }
+      }
+    },
+    "sale": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "deviceId", "eventId", "receiptNumber", "occurredAtUtc", "subtotal", "discountType", "discountValue", "discountAmount", "netAdjustment", "finalTotal", "tipAmount", "paymentMethod", "lines", "componentAllocations", "inventoryMovements"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/uuid" },
+        "eventId": { "$ref": "#/$defs/uuid" },
+        "receiptNumber": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "occurredAtUtc": { "$ref": "#/$defs/utc" },
+        "subtotal": { "$ref": "#/$defs/money" },
+        "discountType": { "oneOf": [{ "enum": ["PERCENTAGE", "FIXED_AMOUNT"] }, { "type": "null" }] },
+        "discountValue": { "oneOf": [{ "$ref": "#/$defs/money" }, { "type": "null" }] },
+        "discountAmount": { "$ref": "#/$defs/money" },
+        "netAdjustment": { "type": "integer", "minimum": -9999999, "maximum": 9999999 },
+        "finalTotal": { "$ref": "#/$defs/money" },
+        "tipAmount": { "$ref": "#/$defs/money" },
+        "paymentMethod": { "enum": ["CASH", "LINE_PAY", "JKOPAY", "OTHER"] },
+        "lines": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/saleLine" } },
+        "componentAllocations": { "type": "array", "items": { "$ref": "#/$defs/componentAllocation" } },
+        "inventoryMovements": { "type": "array", "items": { "$ref": "#/$defs/inventoryMovement" } }
+      }
+    },
+    "void": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "saleId", "deviceId", "eventId", "occurredAtUtc", "reason", "paymentMethod", "inventoryMovements"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "saleId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/uuid" },
+        "eventId": { "$ref": "#/$defs/uuid" },
+        "occurredAtUtc": { "$ref": "#/$defs/utc" },
+        "reason": { "enum": ["UNDO_LAST_CHECKOUT", "USER_VOID"] },
+        "paymentMethod": { "enum": ["CASH", "LINE_PAY", "JKOPAY", "OTHER"] },
+        "inventoryMovements": { "type": "array", "items": { "$ref": "#/$defs/inventoryMovement" } }
+      }
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "shortCode", "name", "status", "registeredAtUtc", "lastSeenAtUtc", "retiredAtUtc"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "shortCode": { "type": "string", "pattern": "^[A-Z]{1,3}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "status": { "enum": ["ACTIVE", "RETIRED"] },
+        "registeredAtUtc": { "$ref": "#/$defs/utc" },
+        "lastSeenAtUtc": { "$ref": "#/$defs/utc" },
+        "retiredAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] }
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "requestId": "10000000-0000-4000-8000-000000000004",
+  "deviceId": "20000000-0000-4000-8000-000000000001",
+  "cloudEpoch": 1,
+  "operations": [
+    {
+      "operationId": "30000000-0000-4000-8000-000000000011",
+      "category": "TRANSACTION",
+      "entityType": "VOID",
+      "entityId": "91000000-0000-4000-8000-000000000001",
+      "operationType": "APPEND",
+      "payload": {
+        "id": "91000000-0000-4000-8000-000000000001",
+        "saleId": "90000000-0000-4000-8000-000000000001",
+        "deviceId": "20000000-0000-4000-8000-000000000001",
+        "eventId": "70000000-0000-4000-8000-000000000001",
+        "occurredAtUtc": "2026-08-29T03:20:00Z",
+        "reason": "USER_VOID",
+        "paymentMethod": "LINE_PAY",
+        "inventoryMovements": [
+          {
+            "id": "80000000-0000-4000-8000-000000000011",
+            "productId": "50000000-0000-4000-8000-000000000001",
+            "eventId": "70000000-0000-4000-8000-000000000001",
+            "fromLocation": null,
+            "toLocation": { "type": "EVENT", "eventId": "70000000-0000-4000-8000-000000000001" },
+            "type": "VOID",
+            "quantity": 2,
+            "relatedTransactionId": "90000000-0000-4000-8000-000000000001",
+            "occurredAtUtc": "2026-08-29T03:20:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}
