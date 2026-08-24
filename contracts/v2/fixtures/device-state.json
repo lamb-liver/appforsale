@@ -1,0 +1,10 @@
+{
+  "deviceId": "20000000-0000-4000-8000-000000000001",
+  "shortCode": "A",
+  "name": "主收銀機",
+  "status": "ACTIVE",
+  "cloudEpoch": 1,
+  "registeredAtUtc": "2026-08-24T01:00:00Z",
+  "lastSeenAtUtc": "2026-08-24T01:10:00Z",
+  "retiredAtUtc": null
+}

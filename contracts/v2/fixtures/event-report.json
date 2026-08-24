@@ -1,0 +1,12 @@
+{
+  "requestId": "10000000-0000-4000-8000-000000000007",
+  "eventId": "70000000-0000-4000-8000-000000000001",
+  "timezone": "Asia/Taipei",
+  "revenue": 100,
+  "knownCost": 50,
+  "grossProfit": 50,
+  "grossProfitComplete": true,
+  "transactionCount": 1,
+  "itemCount": 2,
+  "averageOrderValue": 100
+}

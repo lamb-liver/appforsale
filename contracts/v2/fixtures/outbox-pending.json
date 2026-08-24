@@ -1,0 +1,26 @@
+{
+  "operation": {
+    "operationId": "30000000-0000-4000-8000-000000000001",
+    "category": "MASTER",
+    "entityType": "CATEGORY",
+    "entityId": "40000000-0000-4000-8000-000000000001",
+    "operationType": "UPSERT",
+    "payload": {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "categoryType": "PRODUCT",
+      "name": "徽章",
+      "sortOrder": 0,
+      "updatedAtUtc": "2026-08-24T01:00:00Z",
+      "deletedAtUtc": null
+    }
+  },
+  "payloadHash": "586e2cae8cab27ccf7047a79891302401425461c6b62cf2f5aa2c8f00d90a6a5",
+  "status": "PENDING",
+  "attemptCount": 0,
+  "lastErrorCode": null,
+  "lastErrorMessage": null,
+  "nextAttemptAtUtc": null,
+  "createdAtUtc": "2026-08-24T01:00:00Z",
+  "updatedAtUtc": "2026-08-24T01:00:00Z",
+  "syncedAtUtc": null
+}

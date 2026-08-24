@@ -97,6 +97,7 @@ android {
         abortOnError = true
         checkTestSources = true
     }
+    sourceSets["test"].resources.srcDir(rootProject.file("contracts"))
 }
 
 val validateReleaseSigning = tasks.register("validateReleaseSigning") {

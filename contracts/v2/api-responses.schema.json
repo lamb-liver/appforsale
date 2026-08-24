@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stallpos.app/contracts/v2/api-responses.schema.json",
+  "title": "StallPOS v2 API responses",
+  "oneOf": [
+    { "$ref": "#/$defs/syncBatchResponse" },
+    { "$ref": "#/$defs/bootstrapResponse" },
+    { "$ref": "#/$defs/eventReport" },
+    { "$ref": "#/$defs/errorResponse" }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "money": { "type": "integer", "minimum": 0 },
+    "syncResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId", "status", "code", "message"],
+      "properties": {
+        "operationId": { "$ref": "#/$defs/uuid" },
+        "status": { "enum": ["ACK", "RETRY", "BLOCKED"] },
+        "code": {
+          "oneOf": [
+            { "enum": ["DEVICE_RETIRED", "CLOUD_EPOCH_REVOKED", "INVALID_DATA", "SERVER_CONFLICT"] },
+            { "type": "null" }
+          ]
+        },
+        "message": { "type": ["string", "null"] }
+      }
+    },
+    "syncBatchResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "results"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "results": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/$defs/syncResult" } }
+      }
+    },
+    "bootstrapResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "cloudEpoch", "group", "nextCursor", "data"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "cloudEpoch": { "type": "integer", "minimum": 0 },
+        "group": { "enum": ["PRODUCTS", "BUNDLES", "EVENTS", "INVENTORY", "TRANSACTIONS"] },
+        "nextCursor": { "type": ["string", "null"] },
+        "data": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "eventReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "eventId", "timezone", "revenue", "knownCost", "grossProfit", "grossProfitComplete", "transactionCount", "itemCount", "averageOrderValue"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "eventId": { "$ref": "#/$defs/uuid" },
+        "timezone": { "type": "string", "minLength": 1 },
+        "revenue": { "$ref": "#/$defs/money" },
+        "knownCost": { "$ref": "#/$defs/money" },
+        "grossProfit": { "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "grossProfitComplete": { "type": "boolean" },
+        "transactionCount": { "type": "integer", "minimum": 0 },
+        "itemCount": { "type": "integer", "minimum": 0 },
+        "averageOrderValue": { "$ref": "#/$defs/money" }
+      }
+    },
+    "errorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "code", "message"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

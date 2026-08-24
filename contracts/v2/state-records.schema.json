@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stallpos.app/contracts/v2/state-records.schema.json",
+  "title": "StallPOS v2 device and outbox records",
+  "oneOf": [
+    { "$ref": "#/$defs/deviceState" },
+    { "$ref": "#/$defs/outboxRecord" }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "utc": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "deviceState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deviceId", "shortCode", "name", "status", "cloudEpoch", "registeredAtUtc", "lastSeenAtUtc", "retiredAtUtc"],
+      "properties": {
+        "deviceId": { "$ref": "#/$defs/uuid" },
+        "shortCode": { "type": "string", "pattern": "^[A-Z]{1,3}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "status": { "enum": ["ACTIVE", "RETIRED"] },
+        "cloudEpoch": { "type": "integer", "minimum": 0 },
+        "registeredAtUtc": { "$ref": "#/$defs/utc" },
+        "lastSeenAtUtc": { "$ref": "#/$defs/utc" },
+        "retiredAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] }
+      }
+    },
+    "outboxRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "payloadHash", "status", "attemptCount", "lastErrorCode", "lastErrorMessage", "nextAttemptAtUtc", "createdAtUtc", "updatedAtUtc", "syncedAtUtc"],
+      "properties": {
+        "operation": { "$ref": "sync-batch.schema.json#/$defs/operation" },
+        "payloadHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "status": { "enum": ["PENDING", "SYNCED", "BLOCKED"] },
+        "attemptCount": { "type": "integer", "minimum": 0 },
+        "lastErrorCode": {
+          "oneOf": [
+            { "enum": ["DEVICE_RETIRED", "CLOUD_EPOCH_REVOKED", "INVALID_DATA", "SERVER_CONFLICT"] },
+            { "type": "null" }
+          ]
+        },
+        "lastErrorMessage": { "type": ["string", "null"] },
+        "nextAttemptAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] },
+        "createdAtUtc": { "$ref": "#/$defs/utc" },
+        "updatedAtUtc": { "$ref": "#/$defs/utc" },
+        "syncedAtUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] }
+      }
+    }
+  }
+}
