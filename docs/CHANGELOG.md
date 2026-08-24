@@ -2,6 +2,30 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [2.0.0] - 2026-08-24
+
+### Added
+
+- 活動（Event）生命週期、GENERAL／EVENT 庫存、InventoryMovement／InventoryLevel 與原子 SALE／VOID
+- SQLCipher 加密 Room v2、Android Keystore passphrase 包裝，以及明文 v1→加密 v2 的驗證後原子替換
+- Offline Outbox、WorkManager 固定同步順序、冪等 ACK／retry／blocked／conflict 語意
+- Google Login、短效 access token、旋轉 refresh credential、裝置換機、退役、Cloud epoch 與 atomic bootstrap
+- Cloudflare Worker、獨立 `POS_DB`／`DELETION_DB`、唯讀活動分析 Dashboard 與 Sentry 去識別告警
+
+### Changed
+
+- 新交易以 append-only movement 與 level 作為庫存真相源；舊資料完整轉換並保留 UUID、金額、時間與 nullable cost
+- v2.0 不因未活動自動刪除帳號或寄送通知；雲端帳號與營運資料只由使用者主動 Cloud Delete／Account Delete 移除
+
+### Security
+
+- Google ID Token 先以 JWKS 驗證 cryptographic signature，再驗 `iss`／`aud`／`exp`，最後才信任 `sub`
+- 刪除 tombstone 位於不同 restore boundary；rate limit、180 天 Audit retention 與 Restore Drill 已納入發布 gate
+
+### Verification
+
+- Android unit／lint／API 35 instrumented、正式簽章 v1.5→v2 升級、Worker unit／integration、雙 D1 migration、Dashboard browser smoke 與 production Restore Drill 全數通過
+
 ## [1.5.0] - 2026-08-22
 
 ### Added
@@ -105,6 +129,7 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[2.0.0]: https://github.com/lamb-liver/appforsale/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/lamb-liver/appforsale/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.4.0
 [1.3.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.3.0

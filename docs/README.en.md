@@ -1,10 +1,10 @@
 # Stall POS · Market Checkout
 
-**Version: v1.5.0** (`VERSION` · `versionName`)
+**Version: v2.0.0** (`VERSION` · `versionName`)
 
-An **offline-first Android checkout app** for market stalls and small booths: quick-tap products and bundles, take payment on site, and track today’s revenue—without inventory ERP or a heavy back office.
+An **offline-first Android market POS** with quick checkout, event inventory, cloud backup/device recovery, and a read-only event dashboard.
 
-> **v1.5 Production Baseline**: Room is the only runtime business source of truth. Permanent Android signing, fail-closed release builds, verified APK checksums, and an Immutable GitHub Release workflow are ready without changing the v1.4 user journey.
+> **v2.0 Local-first**: encrypted Room v2 is the on-device source of truth. Transactions complete offline, then an Outbox synchronizes them through a Cloudflare Worker. Inactivity never deletes cloud account or business data; only explicit Cloud Delete or Account Delete does.
 
 > This repo is a **Kotlin / Gradle** project (not Node.js). Dependencies are managed via `gradle/libs.versions.toml`.  
 > 中文說明: [README.md](../README.md) · **Distribution / install / ECPay**: [distribution.md](distribution.md)
@@ -16,10 +16,11 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 | Feature | Notes |
 |---------|--------|
 | Quick checkout | Products / bundles, discounts, custom amount, cash / digital pay, tip; orange **Collect payment** bar shows amount due and item count |
-| Stock | Optional per-product stock; bundles share stock with singles |
+| Event inventory | GENERAL / EVENT transfers, damage, adjustments, event close returns, and bundle component allocation |
 | Haptic & sound | Tap / checkout success / error feedback; independent toggles in settings; silent & vibrate ringer modes = haptic only |
-| Today dashboard | Same-day revenue and transaction count |
-| Undo | Undo the last checkout and immediately restore stock, cart, and revenue |
+| Events and reports | Event lifecycle plus a read-only web dashboard for revenue, trends, products, hours, payments, bundles, and sell-through |
+| VOID | Preserves the Sale and appends one idempotent Void with inventory restoration |
+| Cloud sync / transfer | Google Login, background Outbox sync, device transfer / forced retirement, atomic bootstrap, and cloud epochs |
 | CSV export | A readable report of active transactions only, saved through SAF and shared with the system sheet |
 | JSON backup / restore | Full Room business data in the existing JSON exchange format |
 | Sponsor developer | Voluntary support (NT$30 / 99 / 150); settings → ECPay in external browser; not stall checkout |
@@ -30,10 +31,10 @@ An **offline-first Android checkout app** for market stalls and small booths: qu
 
 | Kotlin | Jetpack Compose · Material 3 | MVVM (`ViewModel` + `StateFlow`) |
 |--------|------------------------------|----------------------------------|
-| Room 3.0.1 + SQLite 2.7.0 `BundledSQLiteDriver` | Kotlin Coroutines · Flow | Lifecycle (`ProcessLifecycleOwner`, Compose lifecycle) |
-| DataStore (UI preferences; one-time legacy retirement only) | kotlinx.collections.immutable | No Hilt / backend |
+| Room 2.8.4 + SQLCipher 4.17.0 | Kotlin Coroutines · Flow | WorkManager · Credential Manager |
+| DataStore (UI preferences; one-time legacy retirement only) | Cloudflare Worker · dual D1 | Sentry · no Hilt |
 
-> See [ADR-0005](adr/0005-room-local-relational-persistence.md) for Room and legacy import, and [room-schema.md](room-schema.md) for DB v1.
+> See [ADR-0005](adr/0005-room-local-relational-persistence.md) for the v1 Room and legacy-import background. The current v2 schema is `app/schemas/com.lambliver.stallpos.data.StallPosV2Database/2.json`.
 
 ---
 
@@ -50,7 +51,9 @@ stallpos/
 │       ├── sponsor/     # SponsorLinks, sponsor sheet, open ECPay payment page
 │       ├── animation/   # Quick-tap tile press scale
 │       └── pos/         # PosAppShell, main screen, PosCheckoutButton, checkout / dashboard sheets
-├── app/src/test/        # Unit tests (coordinators, JSON, checkout amounts…)
+├── app/src/test/        # Unit tests (coordinators, migrations, sync, checkout amounts…)
+├── contracts/v2/       # Shared Android / Worker schemas and golden fixtures
+├── worker/             # API, auth, sync, dual D1 migrations, dashboard, ops
 ├── docs/
 │   ├── adr/             # Architecture decision records
 │   ├── distribution.md  # Release, sideload install, ECPay sponsor setup
@@ -106,12 +109,12 @@ Coordinator and pricing unit tests can use **`FakePosPersistence`**—no device 
 | **`schemaVersion`** | Envelope (backup file root) | `parseBackupEnvelope` validation and migration steps (`BackupMigration`) |
 | **`payloadSchema`** | Inside `payload` | Business blob shape; v4 adds checkout-time product / bundle display-name snapshots |
 
-Both are **4** today. Old **schemaVersion: 1 / 2 / 3** files migrate stepwise. v2→v3 adds stable identity and Reversals; v3→v4 backfills only display names provable from the same backup Catalog.
+Both are **5** today. Old **schemaVersion: 1 / 2 / 3 / 4** files migrate stepwise; costs that cannot be proven remain `null`, never zero.
 
 Instrumented (device/emulator): `PosStoreInstrumentedTest` (Room checkout/undo, rollback, relations, and large history).
 `LegacyRetirementInstrumentedTest` covers v1.2/v1.3/v1.4 fixtures, all-or-nothing cleanup, and malformed legacy isolation.
 
-v1.5 baseline (2026-08-22): 128 unit tests, 17 API 35 instrumented tests, lint, debug build, and signed release build passed. Production-signed synthetic v1.2/v1.3/v1.4 upgrades and unknown-signature JSON transfer were also verified on-device.
+v2.0 release gate (2026-08-24): Android unit, lint, API 35 instrumented, production-signed v1.5→v2 upgrade, Worker unit/integration, both D1 migration sets, dashboard browser smoke, and the production Restore Drill passed.
 
 ### Data and distribution ownership
 

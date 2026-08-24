@@ -55,7 +55,7 @@ android {
         applicationId = "com.lambliver.stallpos"
         minSdk = 24
         targetSdk = 35
-        versionCode = 6
+        versionCode = 7
         versionName = appVersionName
         buildConfigField("String", "SYNC_BASE_URL", quotedBuildConfig(configValue("STALLPOS_SYNC_BASE_URL", "syncBaseUrl")))
         buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", quotedBuildConfig(configValue("STALLPOS_GOOGLE_SERVER_CLIENT_ID", "googleServerClientId")))

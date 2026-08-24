@@ -1,6 +1,6 @@
 # StallPOS v2 Ops Runbook
 
-本文件是 M8 的維運 gate；`VERSION` 在所有外部 gate 通過前必須維持 `1.5.0`。
+本文件是 M8 的維運 gate；所有外部 gate 已於 2026-08-24 通過後，`VERSION` 才由 `1.5.0` 更新為 `2.0.0`。
 
 ## Runtime 設定
 
