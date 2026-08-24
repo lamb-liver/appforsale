@@ -226,6 +226,7 @@ internal fun SaleRecord.toSyncJson(movements: List<InventoryMovementEntity>) = J
             })
             .put("quantity", line.qty)
             .put("unitPrice", line.unitPrice)
+            .putNullable("unitCostSnapshot", financial.unitCostSnapshot)
             .put("originalAmount", financial.originalAmount)
             .put("allocatedDiscount", financial.allocatedDiscount)
             .put("allocatedAdjustment", financial.allocatedAdjustment)

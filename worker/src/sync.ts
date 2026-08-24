@@ -158,10 +158,11 @@ function saleStatements(db: D1Database, userId: string, payload: JsonObject, pay
     statements.push(db.prepare(
       `INSERT INTO sale_lines
        (user_id, sale_id, line_index, item_type, item_ref_id, display_name, quantity, unit_price,
-        original_amount, allocated_discount, allocated_adjustment, final_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        original_amount, allocated_discount, allocated_adjustment, final_amount, unit_cost_snapshot)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(userId, payload.id, line.lineIndex, line.itemType, line.itemRefId, line.displayName, line.quantity,
-      line.unitPrice, line.originalAmount, line.allocatedDiscount, line.allocatedAdjustment, line.finalAmount));
+      line.unitPrice, line.originalAmount, line.allocatedDiscount, line.allocatedAdjustment, line.finalAmount,
+      line.unitCostSnapshot));
   }
   (payload.componentAllocations as JsonObject[]).forEach((allocation, index) => {
     statements.push(db.prepare(

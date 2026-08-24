@@ -9,6 +9,7 @@ export default defineConfig({
         d1Databases: ["POS_DB", "DELETION_DB"],
         bindings: {
           GOOGLE_CLIENT_IDS: "stallpos-test.apps.googleusercontent.com",
+          DASHBOARD_GOOGLE_CLIENT_ID: "stallpos-test.apps.googleusercontent.com",
           TEST_POS_MIGRATIONS: await readD1Migrations(path.join(import.meta.dirname, "migrations/pos")),
           TEST_DELETION_MIGRATIONS: await readD1Migrations(path.join(import.meta.dirname, "migrations/deletion")),
         },

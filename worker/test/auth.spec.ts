@@ -101,14 +101,29 @@ describe("Google ID token verification", () => {
       .first<string>("created_at_utc");
     expect(created! > tombstone!).toBe(true);
   });
+
+  it("creates a secure dashboard cookie only for an existing verified account", async () => {
+    const key = await rsaKey("dashboard-key");
+    mockJwks(key.publicJwk);
+    const idToken = await jwt(key.privateKey, "dashboard-key", validClaims("google-dashboard"));
+    expect((await auth(idToken)).status).toBe(200);
+    const login = await request("/v2/auth/dashboard", { idToken });
+    expect(login.status).toBe(200);
+    const cookie = login.headers.get("set-cookie");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Strict");
+    const events = await request("/v2/reports/events", undefined, undefined, "GET", { cookie: cookie!.split(";")[0]! });
+    expect(events.status).toBe(200);
+    expect(await events.json()).toMatchObject({ events: [] });
+  });
 });
 
 async function auth(idToken: string, id = deviceId, extra: Record<string, unknown> = {}): Promise<Response> {
   return request("/v2/auth/google", { idToken, deviceId: id, deviceName: "Pixel", ...extra });
 }
 
-async function request(path: string, body?: unknown, bearer?: string, method = "POST"): Promise<Response> {
-  const headers = new Headers();
+async function request(path: string, body?: unknown, bearer?: string, method = "POST", extraHeaders?: HeadersInit): Promise<Response> {
+  const headers = new Headers(extraHeaders);
   if (body !== undefined) headers.set("content-type", "application/json");
   if (bearer) headers.set("authorization", `Bearer ${bearer}`);
   const context = createExecutionContext();

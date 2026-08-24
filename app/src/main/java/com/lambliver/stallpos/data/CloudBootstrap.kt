@@ -110,7 +110,7 @@ private fun decodeSale(row: JSONObject): SaleRecord {
     }
     val financial = row.getJSONArray("lines").objects().map { line ->
         SaleLineFinancialSnapshot(
-            line.getInt("lineIndex"), null, line.getLong("originalAmount"), line.getLong("allocatedDiscount"),
+            line.getInt("lineIndex"), line.nullableLong("unitCostSnapshot"), line.getLong("originalAmount"), line.getLong("allocatedDiscount"),
             line.getLong("allocatedAdjustment"), line.getLong("finalAmount"),
         )
     }

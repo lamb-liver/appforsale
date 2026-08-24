@@ -68,7 +68,7 @@ remain local `PENDING` and are not converted to permanent blocked data.
   location. Code and timezone become immutable after the first sale.
 - Inventory movement: positive quantity with explicit from/to location; exactly
   one side is absent for stock entering or leaving the tracked system.
-- Sale: immutable header with nullable event for GENERAL sales, customer-facing lines, component revenue/cost
+- Sale: immutable header with nullable event for GENERAL sales, customer-facing lines with nullable product cost snapshots, component revenue/cost
   allocations, and sale inventory movements in one operation.
 - A custom-amount-only Sale may have no item lines; its revenue is represented by `netAdjustment`.
 - Void: immutable reference to a sale plus inventory restoration movements; its event matches the Sale and may be `null`.
@@ -92,6 +92,11 @@ groups validate.
 
 Reports are read-only. Revenue, cost completeness, gross profit, transaction
 count, item count, and average order value use effective Sales minus Voids.
+`GET /v2/reports/events` and `GET /v2/reports/events/{eventId}` require the
+HttpOnly dashboard session. Co-purchase counts only two `PRODUCT` lines in the
+same effective Sale and is hidden below five shared Sales. Daily and hourly
+buckets use the Event IANA timezone. Inventory sell-through is sold quantity
+divided by stock supplied to that Event.
 
 ## Fixtures
 

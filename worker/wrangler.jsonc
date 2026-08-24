@@ -4,7 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-24",
   "vars": {
-    "GOOGLE_CLIENT_IDS": ""
+    "GOOGLE_CLIENT_IDS": "",
+    "DASHBOARD_GOOGLE_CLIENT_ID": ""
   },
   "d1_databases": [
     {

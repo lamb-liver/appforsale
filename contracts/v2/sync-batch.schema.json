@@ -147,7 +147,7 @@
     "saleLine": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lineIndex", "itemType", "itemRefId", "displayName", "quantity", "unitPrice", "originalAmount", "allocatedDiscount", "allocatedAdjustment", "finalAmount"],
+      "required": ["lineIndex", "itemType", "itemRefId", "displayName", "quantity", "unitPrice", "unitCostSnapshot", "originalAmount", "allocatedDiscount", "allocatedAdjustment", "finalAmount"],
       "properties": {
         "lineIndex": { "type": "integer", "minimum": 0 },
         "itemType": { "enum": ["PRODUCT", "BUNDLE"] },
@@ -155,6 +155,7 @@
         "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
         "quantity": { "type": "integer", "minimum": 1, "maximum": 10000 },
         "unitPrice": { "$ref": "#/$defs/money" },
+        "unitCostSnapshot": { "$ref": "#/$defs/nullableMoney" },
         "originalAmount": { "$ref": "#/$defs/money" },
         "allocatedDiscount": { "$ref": "#/$defs/money" },
         "allocatedAdjustment": { "type": "integer", "minimum": -9999999, "maximum": 9999999 },
