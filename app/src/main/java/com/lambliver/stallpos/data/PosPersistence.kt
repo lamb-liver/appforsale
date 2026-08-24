@@ -20,6 +20,7 @@ interface PosPersistence {
     val lastCheckoutFlow: Flow<LastCheckout?>
     val eventsFlow: Flow<List<MarketEvent>> get() = flowOf(emptyList())
     val inventoryLevelsFlow: Flow<List<InventoryLevel>> get() = flowOf(emptyList())
+    val syncStateFlow: Flow<SyncUiState> get() = flowOf(SyncUiState.LocalOnly)
 
     val snapshot: Flow<PosPersistSnapshot>
 

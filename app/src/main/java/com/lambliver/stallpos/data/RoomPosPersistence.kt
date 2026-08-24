@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -16,7 +17,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.UUID
 
-/** Room 3 runtime persistence；DataStore 只作一次性 legacy import 與 UI preferences。 */
+/** Room 2 runtime persistence；DataStore 只作一次性 legacy import 與 UI preferences。 */
 internal class RoomPosPersistence(
     context: Context,
     private val database: StallPosV2Database = StallPosV2Database.get(context),
@@ -46,17 +47,48 @@ internal class RoomPosPersistence(
     override val lastCheckoutFlow = snapshot.map { it.lastCheckout }
     override val eventsFlow = snapshot.map { it.events }
     override val inventoryLevelsFlow = snapshot.map { it.inventoryLevels }
+    override val syncStateFlow: Flow<SyncUiState> = combine(
+        v2Dao.observeOutboxCounts(),
+        v2Dao.observeCloudValue(SyncCloudKeys.ACCESS_TOKEN),
+    ) { counts, accessToken ->
+        when {
+            accessToken == null -> SyncUiState.LocalOnly
+            counts.blockedCount > 0 -> SyncUiState(
+                SyncUiStatus.BLOCKED,
+                pendingCount = counts.pendingCount,
+                blockedCount = counts.blockedCount,
+            )
+            counts.pendingCount > 0 -> SyncUiState(SyncUiStatus.PENDING, pendingCount = counts.pendingCount)
+            else -> SyncUiState(SyncUiStatus.SYNCED)
+        }
+    }
 
     override suspend fun applyCatalog(plan: CatalogPersistPlan) {
         ensureLegacyImported()
+        val now = System.currentTimeMillis()
         database.withTransaction {
+            val previousProducts = plan.products?.let { readProducts() }.orEmpty()
+            val previousCategories = plan.categories?.let { dao.categories().map { row -> Category(row.id, row.name) } }.orEmpty()
+            val previousBundleCategories = plan.bundleCategories
+                ?.let { dao.bundleCategories().map { row -> BundleCategory(row.id, row.name) } }.orEmpty()
+            val previousBundles = plan.bundles?.let { readBundles() }.orEmpty()
             if (plan.bundles != null) dao.deleteAllBundleComponents()
-            plan.products?.let { replaceProducts(it) }
+            val movements = plan.products?.let { replaceProducts(it, now) }.orEmpty()
             plan.bundles?.let { replaceBundles(it) }
             plan.categories?.let { replaceCategories(it) }
             plan.bundleCategories?.let { replaceBundleCategories(it) }
             plan.cart?.let { replaceCart(it) }
+            v2Dao.enqueueCatalogOperations(
+                plan,
+                previousProducts,
+                previousCategories,
+                previousBundleCategories,
+                previousBundles,
+                movements,
+                now,
+            )
         }
+        scheduleSyncIfConfigured()
     }
 
     override suspend fun saveCart(cart: PosCart) {
@@ -130,14 +162,15 @@ internal class RoomPosPersistence(
             val positiveAdjustment = signedAdjustment.coerceAtLeast(0)
             val allocatedDiscount = allocateLargestRemainder(discountAmount, originalAmounts)
             val allocatedAdjustment = allocateLargestRemainder(positiveAdjustment, originalAmounts)
-            val shortCode = v2Dao.deviceState()?.shortCode ?: "A"
+            val device = deviceStateOrCreate(now)
             val receiptPrefix = activeEvent?.code ?: "GENERAL"
+            val receiptNumber = "$receiptPrefix-${device.shortCode}-${(auditOrder + 1).toString().padStart(4, '0')}"
             v2Dao.insertSaleMeta(
                 SaleV2MetaEntity(
                     saleId = saleId,
                     eventId = activeEvent?.id,
-                    deviceId = v2Dao.deviceState()?.deviceId,
-                    receiptNumber = "$receiptPrefix-$shortCode-${(auditOrder + 1).toString().padStart(4, '0')}",
+                    deviceId = device.deviceId,
+                    receiptNumber = receiptNumber,
                     discountType = if (discountAmount > 0) "FIXED_AMOUNT" else null,
                     discountValue = discountAmount.takeIf { it > 0 },
                     discountAmount = discountAmount,
@@ -159,9 +192,10 @@ internal class RoomPosPersistence(
             if (snapshots.isNotEmpty()) v2Dao.insertSaleLineSnapshots(snapshots)
             val allocations = buildBundleAllocations(saleId, lines, snapshots, bundles, productsById)
             if (allocations.isNotEmpty()) v2Dao.insertBundleAllocations(allocations)
+            val movements = mutableListOf<InventoryMovementEntity>()
             deductions.forEach { (productId, quantity) ->
                 if (productsById.getValue(productId).stock == null) return@forEach
-                moveInventoryInternal(
+                movements += moveInventoryInternal(
                     productId = productId,
                     quantity = quantity,
                     from = location,
@@ -173,11 +207,44 @@ internal class RoomPosPersistence(
             }
             dao.deleteAllCartItems()
             dao.replaceLastCheckout(LastCheckoutEntity(saleId = sale.id))
+            val wireSale = sale.copy(
+                eventId = activeEvent?.id,
+                deviceId = device.deviceId,
+                receiptNumber = receiptNumber,
+                discountType = if (discountAmount > 0) "FIXED_AMOUNT" else null,
+                discountValue = discountAmount.takeIf { it > 0 },
+                discountAmount = discountAmount,
+                netAdjustment = positiveAdjustment,
+                lineFinancialSnapshots = snapshots.map { row ->
+                    SaleLineFinancialSnapshot(
+                        row.lineIndex,
+                        row.unitCostSnapshot,
+                        row.originalAmount,
+                        row.allocatedDiscount,
+                        row.allocatedAdjustment,
+                        row.finalAmount,
+                    )
+                },
+                bundleComponentAllocations = allocations.map { row ->
+                    BundleRevenueAllocation(
+                        row.lineIndex,
+                        row.allocationIndex,
+                        row.productId,
+                        row.productNameSnapshot,
+                        row.unitCostSnapshot,
+                        row.quantity,
+                        row.allocatedRevenue,
+                    )
+                },
+            )
+            v2Dao.enqueueSyncOperation("TRANSACTION", "SALE", saleId, "APPEND", wireSale.toSyncJson(movements), now)
         }
+        scheduleSyncIfConfigured()
     }
 
     override suspend fun undoLastCheckout() {
         ensureLegacyImported()
+        var changed = false
         database.withTransaction {
             val last = dao.lastCheckout() ?: return@withTransaction
             val saleEntity = dao.sale(last.saleId) ?: return@withTransaction
@@ -194,16 +261,18 @@ internal class RoomPosPersistence(
             val location = saleMeta.eventId?.let(InventoryLocation::event) ?: InventoryLocation.General
             val reversalId = UUID.randomUUID().toString()
             val reversedAt = System.currentTimeMillis()
+            val deviceId = saleMeta.deviceId ?: deviceStateOrCreate(reversedAt).deviceId
+            val movements = mutableListOf<InventoryMovementEntity>()
             sale.stockDeductions.forEach { (productId, quantity) ->
                 val tracked = v2Dao.productMeta().firstOrNull { it.productId == productId }?.trackInventory == true
                 if (!tracked) return@forEach
-                moveInventoryInternal(
+                movements += moveInventoryInternal(
                     productId = productId,
                     quantity = quantity,
                     from = null,
                     to = location,
                     type = InventoryMovementType.VOID,
-                    relatedTransactionId = reversalId,
+                    relatedTransactionId = sale.id,
                     now = reversedAt,
                 )
             }
@@ -221,15 +290,35 @@ internal class RoomPosPersistence(
                 ReversalV2MetaEntity(
                     reversalId = reversalId,
                     eventId = saleMeta.eventId,
-                    deviceId = saleMeta.deviceId,
+                    deviceId = deviceId,
                     paymentMethod = sale.paymentMethod.name,
                 ),
             )
             dao.deleteLastCheckout()
+            val reversal = SaleReversal(
+                id = reversalId,
+                saleId = sale.id,
+                tsMillis = reversedAt,
+                reason = ReversalReason.UNDO_LAST_CHECKOUT,
+                eventId = saleMeta.eventId,
+                deviceId = deviceId,
+                paymentMethod = sale.paymentMethod,
+            )
+            v2Dao.enqueueSyncOperation(
+                "TRANSACTION",
+                "VOID",
+                reversalId,
+                "APPEND",
+                reversal.toSyncJson(movements),
+                reversedAt,
+            )
+            changed = true
         }
+        if (changed) scheduleSyncIfConfigured()
     }
 
     override suspend fun saveEvent(event: MarketEvent) {
+        val now = System.currentTimeMillis()
         database.withTransaction {
             val current = v2Dao.event(event.id)
             if (current != null && v2Dao.saleCountForEvent(event.id) > 0) {
@@ -242,24 +331,32 @@ internal class RoomPosPersistence(
             if (event.status == MarketEventStatus.ACTIVE) {
                 check(v2Dao.activeEvents().none { it.id != event.id }) { "another event is already active" }
             }
-            v2Dao.upsertEvent(event.toEntity())
+            val row = event.copy(updatedAtMillis = now).toEntity()
+            v2Dao.upsertEvent(row)
+            v2Dao.enqueueSyncOperation("MASTER", "EVENT", row.id, "UPSERT", row.toSyncJson(), now)
         }
+        scheduleSyncIfConfigured()
     }
 
     override suspend fun changeEventStatus(eventId: String, status: MarketEventStatus) {
+        val now = System.currentTimeMillis()
         database.withTransaction {
-            changeEventStatusInternal(eventId, status, System.currentTimeMillis())
+            changeEventStatusInternal(eventId, status, now)
+            val row = requireNotNull(v2Dao.event(eventId))
+            v2Dao.enqueueSyncOperation("MASTER", "EVENT", row.id, "UPSERT", row.toSyncJson(), now)
         }
+        scheduleSyncIfConfigured()
     }
 
     override suspend fun closeEventAndReturnInventory(eventId: String) {
         database.withTransaction {
             val location = InventoryLocation.event(eventId)
             val now = System.currentTimeMillis()
+            val movements = mutableListOf<InventoryMovementEntity>()
             v2Dao.inventoryLevels()
                 .filter { it.locationKey == location.key && it.quantity > 0 }
                 .forEach { level ->
-                    moveInventoryInternal(
+                    movements += moveInventoryInternal(
                         productId = level.productId,
                         quantity = level.quantity,
                         from = location,
@@ -270,7 +367,13 @@ internal class RoomPosPersistence(
                     )
                 }
             changeEventStatusInternal(eventId, MarketEventStatus.CLOSED, now)
+            val event = requireNotNull(v2Dao.event(eventId))
+            v2Dao.enqueueSyncOperation("MASTER", "EVENT", event.id, "UPSERT", event.toSyncJson(), now)
+            movements.forEach { row ->
+                v2Dao.enqueueSyncOperation("INVENTORY", "INVENTORY_MOVEMENT", row.id, "APPEND", row.toSyncJson(), now)
+            }
         }
+        scheduleSyncIfConfigured()
     }
 
     override suspend fun moveInventory(
@@ -280,9 +383,12 @@ internal class RoomPosPersistence(
         to: InventoryLocation?,
         type: InventoryMovementType,
     ) {
+        val now = System.currentTimeMillis()
         database.withTransaction {
-            moveInventoryInternal(productId, quantity, from, to, type, null, System.currentTimeMillis())
+            val row = moveInventoryInternal(productId, quantity, from, to, type, null, now)
+            v2Dao.enqueueSyncOperation("INVENTORY", "INVENTORY_MOVEMENT", row.id, "APPEND", row.toSyncJson(), now)
         }
+        scheduleSyncIfConfigured()
     }
 
     override suspend fun exportFullBackupJson(): String {
@@ -564,8 +670,11 @@ internal class RoomPosPersistence(
         }
     }
 
-    private suspend fun replaceProducts(rows: List<Product>) {
-        insertProducts(rows)
+    private suspend fun replaceProducts(
+        rows: List<Product>,
+        now: Long = System.currentTimeMillis(),
+    ): List<InventoryMovementEntity> {
+        val movements = insertProducts(rows, now)
         if (rows.isEmpty()) {
             v2Dao.deleteAllInventoryLevels()
             v2Dao.deleteAllProductMeta()
@@ -576,6 +685,7 @@ internal class RoomPosPersistence(
             v2Dao.deleteProductMetaNotIn(ids)
             dao.deleteProductsNotIn(ids)
         }
+        return movements
     }
 
     private suspend fun replaceBundleCategories(rows: List<BundleCategory>) {
@@ -609,29 +719,32 @@ internal class RoomPosPersistence(
         v2Dao.upsertCategoryMeta(rows.map { CategoryV2MetaEntity("PRODUCT", it.id, now, null) })
     }
 
-    private suspend fun insertProducts(rows: List<Product>) {
-        if (rows.isEmpty()) return
+    private suspend fun insertProducts(
+        rows: List<Product>,
+        now: Long = System.currentTimeMillis(),
+    ): List<InventoryMovementEntity> {
+        if (rows.isEmpty()) return emptyList()
         dao.upsertProducts(rows.mapIndexed { i, row ->
             ProductEntity(row.id, row.name, row.price, row.categoryId, null, i)
         })
-        val now = System.currentTimeMillis()
         v2Dao.upsertProductMeta(rows.map { row ->
             require(row.cost == null || row.cost >= 0) { "product cost must be non-negative or null" }
             ProductV2MetaEntity(row.id, row.cost, row.stock != null, true, now, null)
         })
         val active = v2Dao.activeEvents().also { check(it.size <= 1) }.singleOrNull()
         val location = active?.let { InventoryLocation.event(it.id) } ?: InventoryLocation.General
+        val movements = mutableListOf<InventoryMovementEntity>()
         rows.forEach { row ->
             if (row.stock == null) {
                 v2Dao.deleteInventoryLevels(row.id)
             } else {
                 val current = v2Dao.inventoryLevel(row.id, location.key)?.quantity ?: 0L
                 when {
-                    row.stock > current -> moveInventoryInternal(
+                    row.stock > current -> movements += moveInventoryInternal(
                         row.id, row.stock - current, null, location,
                         InventoryMovementType.ADJUSTMENT, null, now,
                     )
-                    row.stock < current -> moveInventoryInternal(
+                    row.stock < current -> movements += moveInventoryInternal(
                         row.id, current - row.stock, location, null,
                         InventoryMovementType.ADJUSTMENT, null, now,
                     )
@@ -640,6 +753,7 @@ internal class RoomPosPersistence(
                 }
             }
         }
+        return movements
     }
 
     private suspend fun insertBundleCategories(rows: List<BundleCategory>) {
@@ -743,7 +857,7 @@ internal class RoomPosPersistence(
         type: InventoryMovementType,
         relatedTransactionId: String?,
         now: Long,
-    ) {
+    ): InventoryMovementEntity {
         require(quantity > 0) { "inventory movement quantity must be positive" }
         require(from != null || to != null) { "inventory movement needs a source or destination" }
         require(from?.key != to?.key) { "inventory movement source and destination must differ" }
@@ -761,8 +875,7 @@ internal class RoomPosPersistence(
                     ?: to.level(productId, quantity, now),
             )
         }
-        v2Dao.insertInventoryMovement(
-            InventoryMovementEntity(
+        val movement = InventoryMovementEntity(
                 id = UUID.randomUUID().toString(),
                 productId = productId,
                 eventId = from?.eventId ?: to?.eventId,
@@ -772,8 +885,9 @@ internal class RoomPosPersistence(
                 quantity = quantity,
                 relatedTransactionId = relatedTransactionId,
                 occurredAtMillis = now,
-            ),
-        )
+            )
+        v2Dao.insertInventoryMovement(movement)
+        return movement
     }
 
     private suspend fun changeEventStatusInternal(
@@ -1103,6 +1217,24 @@ internal class RoomPosPersistence(
     private fun requireUniqueIds(key: String, ids: List<String>) {
         require(ids.all { it.isNotBlank() }) { "backup $key contains a blank id" }
         require(ids.size == ids.toSet().size) { "backup $key contains duplicate ids" }
+    }
+
+    private suspend fun deviceStateOrCreate(now: Long): DeviceStateEntity {
+        v2Dao.deviceState()?.let { return it }
+        return DeviceStateEntity(
+            deviceId = UUID.randomUUID().toString(),
+            shortCode = "A",
+            name = android.os.Build.MODEL.take(100).ifBlank { "Android" },
+            status = "ACTIVE",
+            cloudEpoch = 0,
+            registeredAtMillis = now,
+            lastSeenAtMillis = now,
+            retiredAtMillis = null,
+        ).also { v2Dao.putDeviceState(it) }
+    }
+
+    private suspend fun scheduleSyncIfConfigured() {
+        if (v2Dao.cloudValue(SyncCloudKeys.ACCESS_TOKEN) != null) SyncScheduler.enqueue(appContext)
     }
 
     companion object {

@@ -2,6 +2,8 @@ package com.lambliver.stallpos
 
 import android.annotation.SuppressLint
 import java.time.Instant
+import java.security.MessageDigest
+import com.lambliver.stallpos.data.canonicalJson
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -78,6 +80,10 @@ class V2ContractFixtureTest {
         validateOperation(outbox.getJSONObject("operation"))
         requireUtc(outbox.getString("createdAtUtc"))
         requireUtc(outbox.getString("updatedAtUtc"))
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(canonicalJson(outbox.getJSONObject("operation")).toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        assertEquals(outbox.getString("payloadHash"), digest)
     }
 
     private fun validateSyncBatch(text: String): JSONObject = JSONObject(text).also { root ->
