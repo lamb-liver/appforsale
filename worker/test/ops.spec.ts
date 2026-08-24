@@ -38,6 +38,11 @@ describe("operations gates", () => {
     ]));
   });
 
+  it("skips inactivity email when the sender address is not configured", async () => {
+    const sender = { send: async () => ({ messageId: "unused" }) };
+    expect(await sendInactivityNotifications({ POS_DB: env.POS_DB } as unknown as Env, now, sender)).toBe(0);
+  });
+
   it("fails closed when the native rate limiter rejects a request", async () => {
     const limitedEnv = {
       AUTH_RATE_LIMITER: { limit: async () => ({ success: false }) },

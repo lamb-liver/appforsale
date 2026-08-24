@@ -40,7 +40,7 @@ export async function sendInactivityNotifications(
   now = new Date(),
   sender: Pick<SendEmail, "send"> | undefined = env.EMAIL,
 ): Promise<number> {
-  const from = env.EMAIL_FROM.trim();
+  const from = env.EMAIL_FROM?.trim() ?? "";
   if (!from || !sender) return 0;
   let sent = 0;
   for (const daysBefore of [60, 7] as const) {
