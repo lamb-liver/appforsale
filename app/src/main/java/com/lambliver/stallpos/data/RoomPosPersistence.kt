@@ -19,7 +19,7 @@ import java.util.UUID
 /** Room 3 runtime persistence；DataStore 只作一次性 legacy import 與 UI preferences。 */
 internal class RoomPosPersistence(
     context: Context,
-    private val database: StallPosDatabase = StallPosDatabase.get(context),
+    private val database: StallPosV2Database = StallPosV2Database.get(context),
 ) : PosPersistence {
     private val appContext = context.applicationContext
     private val dao = database.posDao()

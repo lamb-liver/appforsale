@@ -24,12 +24,12 @@ import kotlin.system.measureTimeMillis
 class PosStoreInstrumentedTest {
 
     private val appCtx = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
-    private lateinit var database: StallPosDatabase
+    private lateinit var database: StallPosV2Database
     private lateinit var store: RoomPosPersistence
 
     @Before
     fun setup() = runBlocking {
-        database = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
+        database = Room.inMemoryDatabaseBuilder<StallPosV2Database>(appCtx).build()
         database.posDao().putMeta(AppMetaEntity(LEGACY_IMPORT_VERSION_KEY, "3"))
         store = RoomPosPersistence(appCtx, database)
     }
@@ -144,7 +144,7 @@ class PosStoreInstrumentedTest {
     fun legacyDataStore_importsOnce_thenMarkerPreventsReread() = runBlocking {
         val legacy = PosStore(appCtx)
         val original = legacy.exportFullBackupJson()
-        val importDatabase = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
+        val importDatabase = Room.inMemoryDatabaseBuilder<StallPosV2Database>(appCtx).build()
         try {
             legacy.restoreFullBackupJson(backup(emptyList(), emptyList(), 0)).getOrThrow()
             val product = Product("legacy", "Legacy 名稱", 80L, stock = 4L)

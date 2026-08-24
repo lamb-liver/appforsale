@@ -2,6 +2,7 @@ package com.lambliver.stallpos
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.lambliver.stallpos.data.FakePosPersistence
 import com.lambliver.stallpos.domain.CheckoutSheetPricingSnapshot
 import com.lambliver.stallpos.domain.PosUiState
 import com.lambliver.stallpos.ui.PosViewModel
@@ -54,7 +55,7 @@ class PosUiEventDispatchTest {
 
     @Test
     fun beginCheckout_setsCheckoutSheetSnapshot() = runTest(testDispatcher) {
-        val vm = PosViewModel(app)
+        val vm = PosViewModel(app, FakePosPersistence())
         advanceUntilIdle()
         try {
             vm.beginCheckoutSheet()

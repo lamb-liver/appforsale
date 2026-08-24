@@ -21,12 +21,12 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class LegacyRetirementInstrumentedTest {
     private val appCtx = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
-    private lateinit var database: StallPosDatabase
+    private lateinit var database: StallPosV2Database
 
     @Before
     fun setup() = runBlocking {
         resetLegacyDataStore()
-        database = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
+        database = Room.inMemoryDatabaseBuilder<StallPosV2Database>(appCtx).build()
     }
 
     @After
