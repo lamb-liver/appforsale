@@ -26,6 +26,6 @@ export interface AuthContext {
 export interface GoogleClaims {
   sub: string;
   iss: string;
-  aud: string | string[];
+  aud: string;
   exp: number;
 }

@@ -1,10 +1,10 @@
 # 小攤位 · 市集 POS
 
-**版本：v1.5.0**（`VERSION` · `versionName`）
+**版本：v2.0.0**（`VERSION` · `versionName`）
 
-**離線可用的 Android 結帳 app**：快選商品／套組、現場收款、紀錄今日營收；刻意不做進銷存或複雜後台。
+**離線優先的 Android 市集 POS**：快選結帳、活動庫存、雲端備份／換機恢復，以及唯讀活動分析。
 
-> **v1.5 Production Baseline**：Room 是唯一 runtime business source of truth；永久 Android signing identity、fail-closed release build、GitHub Actions signed APK／checksum 與 Immutable Release 流程已就緒。產品操作與 v1.4 相同。
+> **v2.0 Local-first**：加密 Room v2 是裝置端真相源；離線交易先完成，再由 Outbox 同步至 Cloudflare Worker。雲端帳號與營運資料不因未活動自動刪除，只由使用者主動 Cloud Delete／Account Delete 移除。
 
 > 本 repo 為 **Kotlin / Gradle** 專案（非 Node.js），依賴由 `gradle/libs.versions.toml` 管理。  
 > English: [README.en.md](docs/README.en.md) · **發佈／安裝／綠界**：[docs/distribution.md](docs/distribution.md)
@@ -16,10 +16,11 @@
 | 功能 | 說明 |
 |------|------|
 | 快選結帳 | 商品／套組、折扣、自訂金額、現金／行動支付、小費；主畫面橘色「結帳」按鈕顯示應收與件數 |
-| 庫存 | 可選追蹤庫存；套組與單品共用庫存規則 |
+| 活動庫存 | GENERAL／EVENT 庫存調撥、損壞、調整、活動結束退回；套組與單品共用 component allocation |
 | 操作回饋 | 震動 + 音效（加入購物車／結帳成功／錯誤）；設定選單可獨立開關；靜音／震動模式只震不響 |
-| 今日儀表 | 當日營收與筆數摘要 |
-| 復原 | 結帳成功後可復原上一筆；庫存、購物車與營收立即還原 |
+| 活動與報表 | Event 建立／開始／結束；唯讀 Web Dashboard 顯示營收、趨勢、商品、時段、付款、Bundle 與庫存去化 |
+| VOID | 保留原 Sale 並 append Void／庫存回補；重送只生效一次 |
+| 雲端同步／換機 | Google Login、Outbox 背景同步、裝置 transfer／forced retire、atomic bootstrap 與 Cloud epoch |
 | CSV 匯出 | 僅列有效交易的易讀報表；頂列檔案圖示 → SAF 選路徑存檔 → 系統分享選單 |
 | JSON 備份／還原 | 設定選單完整備份與還原（Room business data JSON exchange format） |
 | 贊助開發者 | 自願支持（30／99／150 元）；設定選單 → 綠界付款頁（外部瀏覽器），與攤位結帳無關 |
@@ -30,10 +31,10 @@
 
 | Kotlin | Jetpack Compose · Material 3 | MVVM（`ViewModel` + `StateFlow`） |
 |--------|------------------------------|----------------------------------|
-| Room 3.0.1 + SQLite 2.7.0 `BundledSQLiteDriver` | Kotlin Coroutines · Flow | Lifecycle（`ProcessLifecycleOwner`、Compose lifecycle） |
-| DataStore（UI preferences；legacy business data 僅供一次性退休） | kotlinx.collections.immutable | 無 Hilt／後端 |
+| Room 2.8.4 + SQLCipher 4.17.0 | Kotlin Coroutines · Flow | WorkManager · Credential Manager |
+| DataStore（UI preferences；legacy business data 僅供一次性退休） | Cloudflare Worker · 雙 D1 | Sentry · 無 Hilt |
 
-> Room 選型與 legacy import 語意見 [ADR-0005](docs/adr/0005-room-local-relational-persistence.md)；DB v1 表格見 [room-schema.md](docs/room-schema.md)。
+> v1 Room 與 legacy import 背景見 [ADR-0005](docs/adr/0005-room-local-relational-persistence.md)；目前 v2 schema 以 `app/schemas/com.lambliver.stallpos.data.StallPosV2Database/2.json` 為準。
 
 ---
 
@@ -50,7 +51,9 @@ stallpos/
 │       ├── sponsor/     # SponsorLinks、贊助 Sheet、開啟綠界付款頁
 │       ├── animation/   # 快選 tile 按壓縮放
 │       └── pos/         # PosAppShell、主畫面、PosCheckoutButton、結帳／儀表 sheet
-├── app/src/test/        # 單元測試（Coordinator、JSON、結帳金額…）
+├── app/src/test/        # 單元測試（Coordinator、migration、sync、結帳金額…）
+├── contracts/v2/       # Android／Worker 共用 schemas 與 golden fixtures
+├── worker/             # API、Auth、Sync、雙 D1 migrations、Dashboard、Ops
 ├── docs/
 │   ├── adr/             # 架構決策紀錄
 │   ├── distribution.md  # 發佈、sideload 安裝、綠界贊助設定
@@ -106,16 +109,16 @@ stallpos/
 | **`schemaVersion`** | Envelope（備份檔根物件） | `parseBackupEnvelope` 驗證與遷移步驟編排（見 `BackupMigration`） |
 | **`payloadSchema`** | `payload` 物件內 | 業務資料束形狀；v4 新增交易當下商品／套組名稱快照 |
 
-現行皆為 **4**。舊 **schemaVersion: 1／2／3** 備份會依序遷移；v2→v3 補 stable identity 與 Reversal log，v3→v4 僅以同一備份的 Catalog 回填可證明的交易名稱，無法回填時保留 `null`。
+現行皆為 **5**。舊 **schemaVersion: 1／2／3／4** 備份會依序遷移；無法可靠回填的成本保持 `null`，不得視為 0。
 
 儀表測試（需模擬器／裝置）：`PosStoreInstrumentedTest`（Room 結帳／復原、rollback、關聯與大量歷史）。
 `LegacyRetirementInstrumentedTest` 驗證 v1.2／v1.3／v1.4 fixtures、全有或全無 cleanup 與 malformed legacy 隔離。
 
-v1.5 驗收基線（2026-08-22）：128 個 unit tests、17 個 API 35 instrumented tests、`lintDebug`、debug／signed release build 均通過；production-signed synthetic v1.2／v1.3／v1.4 原地升級，以及未知簽章 JSON 搬遷亦已實機驗證。
+v2.0 發布 gate（2026-08-24）：Android unit／lint／API 35 instrumented、production-signed v1.5→v2 upgrade、Worker unit／integration、雙 D1 migration、Dashboard browser smoke 與 production Restore Drill 均通過。
 
 ---
 
-### v1.5 資料與發佈契約
+### v2.0 資料與發佈契約
 
 | 項目 | 契約 |
 |------|------|

@@ -10,6 +10,8 @@ export default defineConfig({
         bindings: {
           GOOGLE_CLIENT_IDS: "stallpos-test.apps.googleusercontent.com",
           DASHBOARD_GOOGLE_CLIENT_ID: "stallpos-test.apps.googleusercontent.com",
+          SENTRY_DSN: "",
+          TRANSFER_TOKEN_SECRET: "stallpos-test-transfer-secret-32-bytes",
           TEST_POS_MIGRATIONS: await readD1Migrations(path.join(import.meta.dirname, "migrations/pos")),
           TEST_DELETION_MIGRATIONS: await readD1Migrations(path.join(import.meta.dirname, "migrations/deletion")),
         },

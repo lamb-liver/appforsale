@@ -1,6 +1,8 @@
 import { createExecutionContext, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
+import { handleGoogleAuth } from "../src/auth";
+import { handleDashboardLogin } from "../src/dashboard-auth";
 import { resetPosDb } from "./db";
 
 const audience = "stallpos-test.apps.googleusercontent.com";
@@ -10,10 +12,32 @@ afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => resetPosDb(env.POS_DB));
 
 describe("Google ID token verification", () => {
+  it("reports unavailable auth when Google clients are not configured", async () => {
+    const request = new Request("https://stallpos.test/v2/auth/google", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: "missing-config", deviceId, deviceName: "Pixel" }),
+    });
+    await expect(handleGoogleAuth(request, { POS_DB: env.POS_DB } as unknown as Env, "request-id"))
+      .rejects.toMatchObject({ status: 503, code: "AUTH_NOT_CONFIGURED" });
+  });
+
+  it("reports unavailable dashboard auth when its Google client is not configured", async () => {
+    const request = new Request("https://stallpos.test/v2/auth/dashboard", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: "missing-config" }),
+    });
+    await expect(handleDashboardLogin(request, { POS_DB: env.POS_DB } as unknown as Env, "request-id"))
+      .rejects.toMatchObject({ status: 503, code: "AUTH_NOT_CONFIGURED" });
+  });
+
   it("trusts sub only after a valid Google JWKS signature and claims", async () => {
     const key = await rsaKey("google-key");
     mockJwks(key.publicJwk);
-    const idToken = await jwt(key.privateKey, "google-key", validClaims());
+    const idToken = await jwt(key.privateKey, "google-key", {
+      ...validClaims(), email: "owner@example.com", email_verified: true,
+    });
     const response = await auth(idToken);
 
     expect(response.status).toBe(200);
@@ -22,6 +46,7 @@ describe("Google ID token verification", () => {
     expect(typeof body.accessToken).toBe("string");
     expect(typeof body.refreshToken).toBe("string");
     expect(await env.POS_DB.prepare("SELECT google_sub FROM users").first("google_sub")).toBe("google-sub-123");
+    expect(await env.POS_DB.prepare("SELECT email FROM users").first("email")).toBeNull();
   });
 
   it("rejects forged claims with an invalid signature", async () => {
@@ -35,6 +60,7 @@ describe("Google ID token verification", () => {
 
   it.each([
     ["wrong audience", { ...validClaims(), aud: "attacker.apps.googleusercontent.com" }],
+    ["multiple audiences", { ...validClaims(), aud: [audience, "attacker.apps.googleusercontent.com"] }],
     ["wrong issuer", { ...validClaims(), iss: "https://attacker.example" }],
     ["expired", { ...validClaims(), exp: Math.floor(Date.now() / 1000) - 1 }],
   ])("rejects %s", async (_name, claims) => {

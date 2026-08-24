@@ -19,7 +19,7 @@ export async function handleGoogleAuth(request: Request, env: Env, requestId: st
       (body.forceDevice !== undefined && typeof body.forceDevice !== "boolean")) {
     throw new HttpError(400, "INVALID_DATA", "Google auth request is invalid.");
   }
-  const audiences = env.GOOGLE_CLIENT_IDS.split(",").map((value) => value.trim()).filter(Boolean);
+  const audiences = (env.GOOGLE_CLIENT_IDS ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   if (audiences.length === 0) throw new HttpError(503, "AUTH_NOT_CONFIGURED", "Google auth is unavailable.");
 
   let claims: GoogleClaims;
@@ -213,9 +213,8 @@ export async function verifyGoogleIdToken(token: string, audiences: string[]): P
   if (!verified) throw new Error("invalid signature");
 
   const payload = decodePart(parts[1]) as Partial<GoogleClaims>;
-  const audienceValues = typeof payload.aud === "string" ? [payload.aud] : payload.aud;
-  if (!payload.iss || !ISSUERS.has(payload.iss) || !Array.isArray(audienceValues) ||
-      !audienceValues.some((audience) => audiences.includes(audience)) ||
+  if (!payload.iss || !ISSUERS.has(payload.iss) || typeof payload.aud !== "string" ||
+      !audiences.includes(payload.aud) ||
       typeof payload.exp !== "number" || !Number.isSafeInteger(payload.exp) || payload.exp <= Date.now() / 1000 ||
       typeof payload.sub !== "string" || payload.sub.length < 1 || payload.sub.length > 255) throw new Error("invalid claims");
   return payload as GoogleClaims;

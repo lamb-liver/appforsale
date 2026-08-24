@@ -55,10 +55,11 @@ android {
         applicationId = "com.lambliver.stallpos"
         minSdk = 24
         targetSdk = 35
-        versionCode = 6
+        versionCode = 7
         versionName = appVersionName
         buildConfigField("String", "SYNC_BASE_URL", quotedBuildConfig(configValue("STALLPOS_SYNC_BASE_URL", "syncBaseUrl")))
         buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", quotedBuildConfig(configValue("STALLPOS_GOOGLE_SERVER_CLIENT_ID", "googleServerClientId")))
+        buildConfigField("String", "SENTRY_DSN", quotedBuildConfig(configValue("STALLPOS_SENTRY_DSN", "sentryDsn")))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -145,6 +146,7 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+    implementation(libs.sentry.android)
     implementation(libs.sqlcipher.android)
     implementation(libs.kotlinx.collections.immutable)
     ksp(libs.androidx.room.compiler)

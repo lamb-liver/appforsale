@@ -3,19 +3,35 @@
   "name": "stallpos-v2",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-24",
-  "vars": {
-    "GOOGLE_CLIENT_IDS": "",
-    "DASHBOARD_GOOGLE_CLIENT_ID": ""
+  "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 }
   },
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "204201",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "API_RATE_LIMITER",
+      "namespace_id": "204202",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
   "d1_databases": [
     {
       "binding": "POS_DB",
       "database_name": "stallpos-pos",
+      "database_id": "cdf0984f-8dc2-4fef-b198-e20b3295ee9c",
       "migrations_dir": "migrations/pos"
     },
     {
       "binding": "DELETION_DB",
       "database_name": "stallpos-deletion",
+      "database_id": "4eb33fae-1188-41bb-ac38-7af7abba0833",
       "migrations_dir": "migrations/deletion"
     }
   ],

@@ -74,6 +74,18 @@ describe("StallPOS v2 sync API", () => {
     expect(result.results[0]).toMatchObject({ status: "BLOCKED", code: "SERVER_CONFLICT" });
   });
 
+  it("ACKs concurrent replay of the same logical operation", async () => {
+    await sync(masterBatch);
+    await env.POS_DB.prepare(
+      `INSERT INTO inventory_levels (user_id, product_id, location_key, location_type, event_id, quantity, updated_at_utc)
+       VALUES (?, '50000000-0000-4000-8000-000000000001', 'EVENT:70000000-0000-4000-8000-000000000001',
+       'EVENT', '70000000-0000-4000-8000-000000000001', 10, '2026-08-29T02:00:00Z')`,
+    ).bind(userId).run();
+    const [first, replay] = await Promise.all([sync(saleBatch), sync(duplicateBatch)]);
+    expect(first.results[0]).toMatchObject({ status: "ACK" });
+    expect(replay.results[0]).toMatchObject({ status: "ACK" });
+  });
+
   it("accepts GENERAL sale and void operations without an event", async () => {
     const uncategorizedMaster = structuredClone(masterBatch) as any;
     uncategorizedMaster.operations.find((row: any) => row.entityType === "PRODUCT").payload.categoryId = null;
@@ -132,6 +144,27 @@ describe("StallPOS v2 sync API", () => {
     ]);
     const response = await request("/v2/bootstrap?group=PRODUCTS", "GET", undefined, otherToken);
     expect((await response.json() as { data: unknown[] }).data).toEqual([]);
+  });
+
+  it("cursor-pages bootstrap without dropping rows", async () => {
+    await env.POS_DB.batch(Array.from({ length: 501 }, (_, index) => {
+      const id = `category-${index}`;
+      return env.POS_DB.prepare(
+        `INSERT INTO categories (user_id,id,category_type,name,sort_order,updated_at_utc,deleted_at_utc,payload_json)
+         VALUES (?,?,?,?,?,'2026-08-24T00:00:00Z',NULL,?)`,
+      ).bind(userId, id, "PRODUCT", `Category ${index}`, index, JSON.stringify({ id, index }));
+    }));
+    const firstResponse = await request("/v2/bootstrap?group=PRODUCTS", "GET");
+    const first = await firstResponse.json() as { data: unknown[]; nextCursor: string | null };
+    expect(first.data).toHaveLength(500);
+    expect(first.nextCursor).not.toBeNull();
+    const secondResponse = await request(
+      `/v2/bootstrap?group=PRODUCTS&cursor=${encodeURIComponent(first.nextCursor!)}`,
+      "GET",
+    );
+    const second = await secondResponse.json() as { data: unknown[]; nextCursor: string | null };
+    expect(second.data).toHaveLength(1);
+    expect(second.nextCursor).toBeNull();
   });
 
   it("keeps deletion tombstones append-only in the separate D1 binding", async () => {
