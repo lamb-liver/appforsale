@@ -72,17 +72,19 @@ internal fun PosMainScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = "今日",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
-                )
-                Text(
-                    text = currency.format(uiState.todaySales),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                Column {
+                    Text(
+                        text = "今日 ${currency.format(uiState.todaySales)}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = uiState.sync.displayText(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -92,7 +94,7 @@ internal fun PosMainScreen(
                     onClick = { onUiEvent(PosUiEvent.UndoCheckout) },
                     enabled = uiState.lastCheckout != null,
                     modifier = Modifier.size(48.dp),
-                ) { Icon(Icons.Default.Undo, contentDescription = "復原上筆") }
+                ) { Icon(Icons.Default.Undo, contentDescription = "作廢上筆交易") }
                 IconButton(
                     onClick = { onUiEvent(PosUiEvent.ShowDashboardSheet) },
                     modifier = Modifier.size(48.dp),
@@ -128,6 +130,14 @@ internal fun PosMainScreen(
                                 onUiEvent(PosUiEvent.ShowDialog(DialogState.AddBundle))
                             },
                             enabled = uiState.products.isNotEmpty(),
+                        )
+                        DropdownMenuItem(
+                            text = { Text("活動與庫存") },
+                            leadingIcon = { Icon(Icons.Default.Storefront, contentDescription = null) },
+                            onClick = {
+                                onSettingsMenuExpandedChange(false)
+                                onUiEvent(PosUiEvent.ShowLocalOperationsSheet)
+                            },
                         )
                         HorizontalDivider()
                         DropdownMenuItem(

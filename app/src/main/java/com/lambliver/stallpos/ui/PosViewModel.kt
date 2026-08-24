@@ -128,8 +128,8 @@ class PosViewModel @JvmOverloads constructor(
         when (event) {
             is PosEvent.SetCartQty -> setCartQty(event.productId, event.qty)
             is PosEvent.SetBundleCartQty -> setBundleCartQty(event.bundleId, event.qty)
-            is PosEvent.AddProduct -> addProduct(event.name, event.price, event.categoryId, event.stock)
-            is PosEvent.UpdateProduct -> updateProduct(event.id, event.name, event.price, event.categoryId, event.stock)
+            is PosEvent.AddProduct -> addProduct(event.name, event.price, event.categoryId, event.stock, event.cost)
+            is PosEvent.UpdateProduct -> updateProduct(event.id, event.name, event.price, event.categoryId, event.stock, event.cost)
             is PosEvent.DeleteProduct -> deleteProduct(event.productId)
             is PosEvent.SetProductStock -> setProductStock(event.productId, event.stock)
             is PosEvent.AddCategory -> addCategory(event.name)
@@ -149,6 +149,10 @@ class PosViewModel @JvmOverloads constructor(
             is PosEvent.ExportCsv -> exportCsv(event.target)
             is PosEvent.ExportBackupJson -> exportBackupJson(event.target)
             is PosEvent.ImportBackupJson -> importBackupJson(event.target)
+            is PosEvent.CreateMarketEvent -> createMarketEvent(event.name, event.type, event.location)
+            is PosEvent.ChangeMarketEventStatus -> changeMarketEventStatus(event.eventId, event.status)
+            is PosEvent.MoveInventory -> moveInventory(event)
+            is PosEvent.CloseMarketEvent -> closeMarketEvent(event.eventId)
         }
     }
 
@@ -209,6 +213,8 @@ class PosViewModel @JvmOverloads constructor(
             reversalLog = snap.reversalLog.toImmutableList(),
             todaySalesLog = todaySalesLog.toImmutableList(),
             lastCheckout = snap.lastCheckout,
+            events = snap.events.toImmutableList(),
+            inventoryLevels = snap.inventoryLevels.toImmutableList(),
             subtotal = subtotal,
             todayKey = todayKey,
             todaySales = todaySalesLog.sumOf { it.total + it.tipAmount },

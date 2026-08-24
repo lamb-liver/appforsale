@@ -247,6 +247,29 @@ class PosStoreInstrumentedTest {
     }
 
     @Test
+    fun closeEvent_returnsAllRemainingInventoryAtomically() = runBlocking {
+        val products = listOf(
+            Product("close-a", "A", 10, stock = 8),
+            Product("close-b", "B", 10, stock = 5),
+        )
+        store.applyCatalog(CatalogPersistPlan(products = products))
+        val event = MarketEvent.create("Close", MarketEventType.MARKET, 1, 2, "Asia/Taipei")
+        store.saveEvent(event)
+        store.moveInventory("close-a", 6, InventoryLocation.General, InventoryLocation.event(event.id), InventoryMovementType.ALLOCATE_TO_EVENT)
+        store.moveInventory("close-b", 4, InventoryLocation.General, InventoryLocation.event(event.id), InventoryMovementType.ALLOCATE_TO_EVENT)
+        store.changeEventStatus(event.id, MarketEventStatus.ACTIVE)
+
+        store.closeEventAndReturnInventory(event.id)
+
+        val closed = store.snapshot.first()
+        assertEquals(MarketEventStatus.CLOSED, closed.events.single().status)
+        assertEquals(listOf(8L, 5L), closed.products.map { it.stock })
+        assertEquals(0L, closed.inventoryLevels.first { it.productId == "close-a" && it.location.eventId == event.id }.quantity)
+        assertEquals(0L, closed.inventoryLevels.first { it.productId == "close-b" && it.location.eventId == event.id }.quantity)
+        assertEquals(2, closed.inventoryMovements.count { it.type == InventoryMovementType.RETURN_FROM_EVENT })
+    }
+
+    @Test
     fun v2JsonBackup_roundTripsEventsLevelsMovementsCostsSnapshotsAndVoid() = runBlocking {
         val product = Product("backup-v2", "Backup", 80, stock = 6, cost = 25)
         store.applyCatalog(CatalogPersistPlan(products = listOf(product)))
