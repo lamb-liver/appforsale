@@ -28,4 +28,6 @@ export interface GoogleClaims {
   iss: string;
   aud: string | string[];
   exp: number;
+  email?: string;
+  email_verified?: boolean;
 }

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/cloudflare";
 import { authenticate, handleGoogleAuth, handleRefresh } from "./auth";
 import { dashboardAsset } from "./dashboard-assets";
 import { authenticateDashboard, handleDashboardLogin, handleDashboardLogout } from "./dashboard-auth";
@@ -5,8 +6,9 @@ import { errorJson, HttpError, json, requestIdFor } from "./http";
 import { handleClaimTransfer, handleCommitTransfer, handleCreateTransfer, handleDelete, reconcileDeletionTombstones } from "./lifecycle";
 import { handleBootstrap, handleSync } from "./sync";
 import { handleEventReport, handleEventReports } from "./reports";
+import { operationalAlert, rateLimitResponse, runScheduledOps, sentryOptions } from "./ops";
 
-export default {
+const handler = {
   async fetch(request, env, _ctx): Promise<Response> {
     const requestId = requestIdFor(request);
     try {
@@ -16,6 +18,8 @@ export default {
       if (request.method === "GET" && url.pathname === "/health") {
         return json({ status: "ok" }, 200, requestId);
       }
+      const limited = await rateLimitResponse(request, env, requestId);
+      if (limited) return limited;
       if (request.method === "POST" && url.pathname === "/v2/auth/google") {
         return await handleGoogleAuth(request, env, requestId);
       }
@@ -61,7 +65,15 @@ export default {
       }
       return errorJson(requestId, 404, "NOT_FOUND", "Route not found.");
     } catch (error) {
-      if (error instanceof HttpError) return errorJson(requestId, error.status, error.code, error.message);
+      if (error instanceof HttpError) {
+        if (error.status === 401 || error.status === 403) operationalAlert("AUTHORIZATION_FAILURE", requestId, { status: error.status });
+        return errorJson(requestId, error.status, error.code, error.message);
+      }
+      Sentry.withScope((scope) => {
+        scope.setTag("request_id", requestId);
+        scope.setTag("ops_alert", "HTTP_5XX");
+        Sentry.captureException(error);
+      });
       return errorJson(requestId, 500, "INTERNAL_ERROR", "Request could not be completed.");
     }
   },
@@ -73,5 +85,8 @@ export default {
       env.POS_DB.prepare("DELETE FROM dashboard_sessions WHERE expires_at_utc <= ?").bind(now),
     ]);
     await reconcileDeletionTombstones(env);
+    await runScheduledOps(env);
   },
 } satisfies ExportedHandler<Env>;
+
+export default Sentry.withSentry((env) => sentryOptions(env), handler);

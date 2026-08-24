@@ -5,8 +5,25 @@
   "compatibility_date": "2026-08-24",
   "vars": {
     "GOOGLE_CLIENT_IDS": "",
-    "DASHBOARD_GOOGLE_CLIENT_ID": ""
+    "DASHBOARD_GOOGLE_CLIENT_ID": "",
+    "SENTRY_DSN": "",
+    "EMAIL_FROM": ""
   },
+  "send_email": [
+    { "name": "EMAIL" }
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "204201",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "API_RATE_LIMITER",
+      "namespace_id": "204202",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
   "d1_databases": [
     {
       "binding": "POS_DB",

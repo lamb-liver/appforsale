@@ -7,6 +7,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
+import java.util.UUID
 import org.json.JSONObject
 
 internal enum class CloudLoginIntent { SIGN_IN, REENABLE, CREATE_AFTER_DELETE }
@@ -136,6 +137,7 @@ private object CloudHttp {
                 connection.connectTimeout = 15_000
                 connection.readTimeout = 15_000
                 connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("X-Request-ID", UUID.randomUUID().toString())
                 bearer?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
                 body?.let {
                     connection.doOutput = true

@@ -14,7 +14,7 @@ beforeEach(async () => {
   await resetPosDb(env.POS_DB);
   await env.POS_DB.batch([
     env.POS_DB.prepare(
-      "INSERT INTO users (id,google_sub,cloud_epoch,created_at_utc) VALUES (?,'google-lifecycle',1,'2026-08-24T00:00:00Z')",
+      "INSERT INTO users (id,google_sub,cloud_epoch,created_at_utc,email) VALUES (?,'google-lifecycle',1,'2026-08-24T00:00:00Z','owner@example.com')",
     ).bind(userId),
     env.POS_DB.prepare(
       `INSERT INTO devices (id,user_id,short_code,name,status,cloud_epoch,registered_at_utc,last_seen_at_utc)
@@ -62,6 +62,7 @@ describe("device and deletion lifecycle", () => {
     await env.POS_DB.prepare("DROP TRIGGER fail_cloud_delete").run();
     await reconcileDeletionTombstones(env);
     expect(await env.POS_DB.prepare("SELECT deleted_at_utc FROM users WHERE id=?").bind(userId).first("deleted_at_utc")).toBeTruthy();
+    expect(await env.POS_DB.prepare("SELECT email FROM users WHERE id=?").bind(userId).first("email")).toBeNull();
     expect(await env.POS_DB.prepare("SELECT COUNT(*) AS count FROM sessions WHERE user_id=?").bind(userId).first("count")).toBe(0);
   });
 });

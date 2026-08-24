@@ -7,7 +7,9 @@ sdk.dir=/path/to/Android/sdk
 # StallPOS v2 cloud (optional before the internal M8 release gate)
 # syncBaseUrl=https://your-worker.example.workers.dev
 # googleServerClientId=000000000000-example.apps.googleusercontent.com
-# CI equivalents: STALLPOS_SYNC_BASE_URL and STALLPOS_GOOGLE_SERVER_CLIENT_ID
+# sentryDsn=https://public@example.ingest.sentry.io/project
+# CI equivalents: STALLPOS_SYNC_BASE_URL, STALLPOS_GOOGLE_SERVER_CLIENT_ID,
+# and STALLPOS_SENTRY_DSN
 
 # 綠界贊助付款 URL：填入 app/.../ui/sponsor/SponsorLinks.kt（非本檔）
 #   ECPAY_URL_TIER_SMALL / MEDIUM / LARGE

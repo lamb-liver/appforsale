@@ -88,7 +88,7 @@ export async function handleDelete(env: Env, auth: AuthContext, requestId: strin
   try {
     const statements = clearUserStatements(env.POS_DB, auth.userId, scope === "ACCOUNT");
     if (scope === "CLOUD") {
-      statements.push(env.POS_DB.prepare("UPDATE users SET deleted_at_utc=? WHERE id=?").bind(nowUtc, auth.userId));
+      statements.push(env.POS_DB.prepare("UPDATE users SET deleted_at_utc=?,email=NULL WHERE id=?").bind(nowUtc, auth.userId));
     }
     await checkedBatch(env.POS_DB, statements);
     return json({ requestId, status: "DELETED", scope }, 200, requestId);
@@ -109,7 +109,8 @@ export async function reconcileDeletionTombstones(env: Env): Promise<void> {
         (tombstone.scope === "CLOUD" && user.cloud_epoch > tombstone.deletion_epoch)) continue;
     const statements = clearUserStatements(env.POS_DB, user.id, tombstone.scope === "ACCOUNT");
     if (tombstone.scope === "CLOUD") {
-      statements.push(env.POS_DB.prepare("UPDATE users SET deleted_at_utc=? WHERE id=?").bind(tombstone.requested_at_utc, user.id));
+      statements.push(env.POS_DB.prepare("UPDATE users SET deleted_at_utc=?,email=NULL WHERE id=?")
+        .bind(tombstone.requested_at_utc, user.id));
     }
     await checkedBatch(env.POS_DB, statements);
   }

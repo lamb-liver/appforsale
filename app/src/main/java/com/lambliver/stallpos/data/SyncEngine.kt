@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import io.sentry.Sentry
 
 internal object SyncCloudKeys {
     const val BASE_URL = "sync_base_url"
@@ -47,6 +48,7 @@ internal class UrlConnectionSyncTransport : SyncTransport {
                 setRequestProperty("Authorization", "Bearer $accessToken")
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
+                setRequestProperty("X-Request-ID", JSONObject(body).getString("requestId"))
             }
             try {
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
@@ -275,7 +277,8 @@ internal class StallPosSyncWorker(context: Context, params: WorkerParameters) : 
         }
         @Suppress("UNREACHABLE_CODE")
         Result.success()
-    }.getOrElse {
+    }.getOrElse { error ->
+        Sentry.captureException(error)
         Result.retry()
     }
 }

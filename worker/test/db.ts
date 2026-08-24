@@ -1,4 +1,5 @@
 const POS_TABLES = [
+  "inactivity_notifications",
   "dashboard_sessions",
   "audit_logs",
   "processed_operations",

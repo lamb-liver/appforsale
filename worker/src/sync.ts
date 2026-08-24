@@ -2,19 +2,23 @@ import { json, readJsonObject } from "./http";
 import { sha256 } from "./auth";
 import type { AuthContext, JsonObject, SyncBatchRequest, SyncOperation } from "./types";
 import { locationKey, validateSyncBatch } from "./validation";
+import { operationalAlert } from "./ops";
 
 export async function handleSync(request: Request, env: Env, auth: AuthContext): Promise<Response> {
   const body = await readJsonObject(request);
   const validationError = validateSyncBatch(body);
   const requestId = typeof body.requestId === "string" ? body.requestId : crypto.randomUUID();
   if (validationError) {
+    operationalAlert("SYNC_ERROR", requestId, { code: "INVALID_DATA" });
     return json({ requestId, code: "INVALID_DATA", message: validationError }, 400, requestId);
   }
   const batch = body as unknown as SyncBatchRequest;
   if (batch.deviceId !== auth.deviceId) {
+    operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "DEVICE_RETIRED" });
     return blockedBatch(batch, "DEVICE_RETIRED", "Session is not valid for this device.");
   }
   if (batch.cloudEpoch !== auth.cloudEpoch) {
+    operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "CLOUD_EPOCH_REVOKED" });
     return blockedBatch(batch, "CLOUD_EPOCH_REVOKED", "Cloud epoch is no longer active.");
   }
 
@@ -25,9 +29,11 @@ export async function handleSync(request: Request, env: Env, auth: AuthContext):
       "SELECT payload_hash FROM processed_operations WHERE user_id = ? AND operation_id = ?",
     ).bind(auth.userId, operation.operationId).first<{ payload_hash: string }>();
     if (processed) {
-      results.push(processed.payload_hash === payloadHash
-        ? syncResult(operation.operationId, "ACK")
-        : syncResult(operation.operationId, "BLOCKED", "SERVER_CONFLICT", "Operation ID was reused with different data."));
+      if (processed.payload_hash === payloadHash) results.push(syncResult(operation.operationId, "ACK"));
+      else {
+        operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "SERVER_CONFLICT" });
+        results.push(syncResult(operation.operationId, "BLOCKED", "SERVER_CONFLICT", "Operation ID was reused with different data."));
+      }
       continue;
     }
 
@@ -50,9 +56,12 @@ export async function handleSync(request: Request, env: Env, auth: AuthContext):
       if (applied.some((result) => !result.success)) throw new Error("D1 batch failed");
       results.push(syncResult(operation.operationId, "ACK"));
     } catch {
+      operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "INVALID_DATA" });
       results.push(syncResult(operation.operationId, "BLOCKED", "INVALID_DATA", "Operation could not be applied."));
     }
   }
+  await env.POS_DB.prepare("UPDATE devices SET last_seen_at_utc=? WHERE id=? AND user_id=?")
+    .bind(new Date().toISOString(), auth.deviceId, auth.userId).run();
   return json({ requestId: batch.requestId, results }, 200, batch.requestId);
 }
 
