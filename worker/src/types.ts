@@ -20,6 +20,7 @@ export interface AuthContext {
   userId: string;
   deviceId: string;
   cloudEpoch: number;
+  googleSub: string;
 }
 
 export interface GoogleClaims {

@@ -1,5 +1,6 @@
-import { authenticate, handleGoogleAuth } from "./auth";
+import { authenticate, handleGoogleAuth, handleRefresh } from "./auth";
 import { errorJson, HttpError, json, requestIdFor } from "./http";
+import { handleClaimTransfer, handleCommitTransfer, handleCreateTransfer, handleDelete, reconcileDeletionTombstones } from "./lifecycle";
 import { handleBootstrap, handleSync } from "./sync";
 
 export default {
@@ -12,6 +13,24 @@ export default {
       }
       if (request.method === "POST" && url.pathname === "/v2/auth/google") {
         return await handleGoogleAuth(request, env, requestId);
+      }
+      if (request.method === "POST" && url.pathname === "/v2/auth/refresh") {
+        return await handleRefresh(request, env, requestId);
+      }
+      if (request.method === "POST" && url.pathname === "/v2/devices/transfer") {
+        return await handleCreateTransfer(request, env, await authenticate(request, env), requestId);
+      }
+      if (request.method === "POST" && url.pathname === "/v2/devices/transfer/claim") {
+        return await handleClaimTransfer(request, env, requestId);
+      }
+      if (request.method === "POST" && url.pathname === "/v2/devices/transfer/commit") {
+        return await handleCommitTransfer(request, env, requestId);
+      }
+      if (request.method === "DELETE" && url.pathname === "/v2/account/cloud") {
+        return await handleDelete(env, await authenticate(request, env), requestId, "CLOUD");
+      }
+      if (request.method === "DELETE" && url.pathname === "/v2/account") {
+        return await handleDelete(env, await authenticate(request, env), requestId, "ACCOUNT");
       }
       if (request.method === "POST" && url.pathname === "/v2/sync/batch") {
         return await handleSync(request, env, await authenticate(request, env));
@@ -28,5 +47,6 @@ export default {
 
   async scheduled(_controller, env): Promise<void> {
     await env.POS_DB.prepare("DELETE FROM sessions WHERE expires_at_utc <= ?").bind(new Date().toISOString()).run();
+    await reconcileDeletionTombstones(env);
   },
 } satisfies ExportedHandler<Env>;
