@@ -129,6 +129,9 @@ jobs:
       - name: Build production-signed candidate
         env:
           KEYSTORE_BASE64: ${{ secrets.STALLPOS_RELEASE_KEYSTORE_BASE64 }}
+          STALLPOS_SYNC_BASE_URL: ${{ vars.STALLPOS_SYNC_BASE_URL }}
+          STALLPOS_GOOGLE_SERVER_CLIENT_ID: ${{ vars.STALLPOS_GOOGLE_SERVER_CLIENT_ID }}
+          STALLPOS_SENTRY_DSN: ${{ secrets.STALLPOS_SENTRY_DSN }}
           STALLPOS_RELEASE_STORE_PASSWORD: ${{ secrets.STALLPOS_RELEASE_STORE_PASSWORD }}
           STALLPOS_RELEASE_KEY_ALIAS: ${{ secrets.STALLPOS_RELEASE_KEY_ALIAS }}
           STALLPOS_RELEASE_KEY_PASSWORD: ${{ secrets.STALLPOS_RELEASE_KEY_PASSWORD }}
@@ -216,6 +219,9 @@ jobs:
       - name: Decode keystore and build signed release APK
         env:
           KEYSTORE_BASE64: ${{ secrets.STALLPOS_RELEASE_KEYSTORE_BASE64 }}
+          STALLPOS_SYNC_BASE_URL: ${{ vars.STALLPOS_SYNC_BASE_URL }}
+          STALLPOS_GOOGLE_SERVER_CLIENT_ID: ${{ vars.STALLPOS_GOOGLE_SERVER_CLIENT_ID }}
+          STALLPOS_SENTRY_DSN: ${{ secrets.STALLPOS_SENTRY_DSN }}
           STALLPOS_RELEASE_STORE_PASSWORD: ${{ secrets.STALLPOS_RELEASE_STORE_PASSWORD }}
           STALLPOS_RELEASE_KEY_ALIAS: ${{ secrets.STALLPOS_RELEASE_KEY_ALIAS }}
           STALLPOS_RELEASE_KEY_PASSWORD: ${{ secrets.STALLPOS_RELEASE_KEY_PASSWORD }}
@@ -225,6 +231,9 @@ jobs:
           test -n "$STALLPOS_RELEASE_STORE_PASSWORD"
           test -n "$STALLPOS_RELEASE_KEY_ALIAS"
           test -n "$STALLPOS_RELEASE_KEY_PASSWORD"
+          test -n "$STALLPOS_SYNC_BASE_URL"
+          test -n "$STALLPOS_GOOGLE_SERVER_CLIENT_ID"
+          test -n "$STALLPOS_SENTRY_DSN"
           trap 'rm -f -- "$STALLPOS_RELEASE_STORE_FILE"' EXIT
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$STALLPOS_RELEASE_STORE_FILE"
           chmod 600 "$STALLPOS_RELEASE_STORE_FILE"
