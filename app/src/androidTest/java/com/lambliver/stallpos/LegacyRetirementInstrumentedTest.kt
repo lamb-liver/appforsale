@@ -109,7 +109,11 @@ class LegacyRetirementInstrumentedTest {
         assertEquals(expected.bundleCategories, imported.bundleCategories)
         assertEquals(expected.bundles, imported.bundles)
         assertEquals(expected.cart, imported.cart)
-        assertEquals(expected.salesLog, imported.salesLog)
+        assertEquals(
+            expected.salesLog,
+            imported.salesLog.map { it.copy(receiptNumber = null, lineFinancialSnapshots = emptyList()) },
+        )
+        assertTrue(imported.salesLog.all { !it.receiptNumber.isNullOrBlank() })
         assertEquals(expected.reversalLog, imported.reversalLog)
         assertEquals(expected.lastCheckout, imported.lastCheckout)
         assertEquals(expected.totalSales, imported.totalSales)
@@ -190,7 +194,7 @@ class LegacyRetirementInstrumentedTest {
                 operational.bundles,
             ).isNotBlank(),
         )
-        assertEquals(4, JSONObject(reopened.exportFullBackupJson()).getInt("schemaVersion"))
+        assertEquals(PosStore.BACKUP_SCHEMA_VERSION, JSONObject(reopened.exportFullBackupJson()).getInt("schemaVersion"))
     }
 
     private suspend fun createLegacyFixture(withReversal: Boolean): PosPersistSnapshot {
@@ -272,7 +276,7 @@ class LegacyRetirementInstrumentedTest {
 
     private fun emptyBackup(): String {
         val payload = JSONObject()
-            .put("payloadSchema", 4)
+            .put("payloadSchema", PosStore.BACKUP_SCHEMA_VERSION)
             .put("products_json", "[]")
             .put("categories_json", "[]")
             .put("bundle_categories_json", "[]")
@@ -281,11 +285,14 @@ class LegacyRetirementInstrumentedTest {
             .put("sales_log_json", "[]")
             .put("reversal_log_json", "[]")
             .put("last_checkout_json", "")
+            .put("events_json", "[]")
+            .put("inventory_levels_json", "[]")
+            .put("inventory_movements_json", "[]")
             .put("total_sales", 0L)
             .put("tx_count", 0L)
         return JSONObject()
             .put("format", PosStore.BACKUP_FORMAT_ID)
-            .put("schemaVersion", 4)
+            .put("schemaVersion", PosStore.BACKUP_SCHEMA_VERSION)
             .put("exportedAtMillis", 1L)
             .put("payload", payload)
             .toString()

@@ -16,7 +16,7 @@ class PosStore(private val context: Context) : PosPersistence {
         const val BACKUP_FORMAT_ID = "stallpos_pos_backup"
         /** v1.0.x 匯出格式；還原時仍接受 */
         const val LEGACY_BACKUP_FORMAT_ID = "appforsale_pos_backup"
-        const val BACKUP_SCHEMA_VERSION = 4
+        const val BACKUP_SCHEMA_VERSION = 5
     }
 
     override val snapshot: Flow<PosPersistSnapshot> = context.posPreferencesDataStore.data.map { prefs ->
@@ -84,6 +84,9 @@ class PosStore(private val context: Context) : PosPersistence {
             put("sales_log_json", prefs[SALES_LOG_JSON_KEY] ?: "")
             put("reversal_log_json", prefs[SALES_REVERSAL_LOG_JSON_KEY] ?: "[]")
             put("last_checkout_json", prefs[LAST_CHECKOUT_JSON_KEY] ?: "")
+            put("events_json", "[]")
+            put("inventory_levels_json", "[]")
+            put("inventory_movements_json", "[]")
             put("total_sales", prefs[LEGACY_TOTAL_SALES_KEY] ?: 0L)
             put("tx_count", prefs[LEGACY_TX_COUNT_KEY] ?: 0L)
         }

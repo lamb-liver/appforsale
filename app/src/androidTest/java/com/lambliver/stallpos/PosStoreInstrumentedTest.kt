@@ -247,6 +247,31 @@ class PosStoreInstrumentedTest {
     }
 
     @Test
+    fun v2JsonBackup_roundTripsEventsLevelsMovementsCostsSnapshotsAndVoid() = runBlocking {
+        val product = Product("backup-v2", "Backup", 80, stock = 6, cost = 25)
+        store.applyCatalog(CatalogPersistPlan(products = listOf(product)))
+        val event = MarketEvent.create("Backup Event", MarketEventType.POPUP, 1, 2, "Asia/Taipei")
+        store.saveEvent(event)
+        store.moveInventory(
+            product.id,
+            4,
+            InventoryLocation.General,
+            InventoryLocation.event(event.id),
+            InventoryMovementType.ALLOCATE_TO_EVENT,
+        )
+        store.changeEventStatus(event.id, MarketEventStatus.ACTIVE)
+        store.commitCheckout(checkout(product.id, 1, 80))
+        store.undoLastCheckout()
+        val before = store.snapshot.first()
+
+        val backup = store.exportFullBackupJson()
+        assertEquals(PosStore.BACKUP_SCHEMA_VERSION, JSONObject(backup).getInt("schemaVersion"))
+        store.restoreFullBackupJson(backup).getOrThrow()
+
+        assertEquals(before, store.snapshot.first())
+    }
+
+    @Test
     fun legacyDataStore_importsOnce_thenMarkerPreventsReread() = runBlocking {
         val legacy = PosStore(appCtx)
         val original = legacy.exportFullBackupJson()
@@ -261,7 +286,12 @@ class PosStoreInstrumentedTest {
 
             val imported = RoomPosPersistence(appCtx, importDatabase).snapshot.first()
             assertEquals(expected.products, imported.products)
-            assertEquals(expected.salesLog, imported.salesLog)
+            assertEquals(
+                expected.salesLog,
+                imported.salesLog.map { it.copy(receiptNumber = null, lineFinancialSnapshots = emptyList()) },
+            )
+            assertEquals("LEGACY-A-0001", imported.salesLog.single().receiptNumber)
+            assertEquals(80L, imported.salesLog.single().lineFinancialSnapshots.single().finalAmount)
             assertEquals(expected.lastCheckout, imported.lastCheckout)
             assertEquals(80L, imported.totalSales)
 
@@ -437,6 +467,9 @@ class PosStoreInstrumentedTest {
             .put("sales_log_json", encodeSalesRecordsJson(sales))
             .put("reversal_log_json", encodeSaleReversalsJson(reversals))
             .put("last_checkout_json", "")
+            .put("events_json", "[]")
+            .put("inventory_levels_json", "[]")
+            .put("inventory_movements_json", "[]")
             .put("total_sales", activeCount.toLong())
             .put("tx_count", activeCount.toLong())
         return JSONObject()

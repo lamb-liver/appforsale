@@ -112,6 +112,34 @@ data class SaleRecord(
     val tipAmount: Long = 0L,
     val checkoutLines: List<SaleCheckoutLine> = emptyList(),
     val stockDeductions: Map<String, Long> = emptyMap(),
+    val eventId: String? = null,
+    val deviceId: String? = null,
+    val receiptNumber: String? = null,
+    val discountType: String? = null,
+    val discountValue: Long? = null,
+    val discountAmount: Long = discount,
+    val netAdjustment: Long = 0L,
+    val lineFinancialSnapshots: List<SaleLineFinancialSnapshot> = emptyList(),
+    val bundleComponentAllocations: List<BundleRevenueAllocation> = emptyList(),
+)
+
+data class SaleLineFinancialSnapshot(
+    val lineIndex: Int,
+    val unitCostSnapshot: Long?,
+    val originalAmount: Long,
+    val allocatedDiscount: Long,
+    val allocatedAdjustment: Long,
+    val finalAmount: Long,
+)
+
+data class BundleRevenueAllocation(
+    val lineIndex: Int,
+    val allocationIndex: Int,
+    val productId: String,
+    val productNameSnapshot: String,
+    val unitCostSnapshot: Long?,
+    val quantity: Long,
+    val allocatedRevenue: Long,
 )
 
 enum class ReversalReason {
@@ -124,6 +152,9 @@ data class SaleReversal(
     val saleId: String,
     val tsMillis: Long,
     val reason: ReversalReason,
+    val eventId: String? = null,
+    val deviceId: String? = null,
+    val paymentMethod: PaymentMethod = PaymentMethod.CASH,
 )
 
 /** 報表唯一真相源：Sales 減去 Reversals。 */

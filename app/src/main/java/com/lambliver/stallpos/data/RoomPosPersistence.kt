@@ -185,6 +185,9 @@ internal class RoomPosPersistence(
             val sale = saleEntity.toDomain(
                 dao.saleLines(last.saleId),
                 dao.stockDeductions(last.saleId),
+                v2Dao.saleMeta(last.saleId),
+                v2Dao.saleLineSnapshots(last.saleId),
+                v2Dao.bundleAllocations(last.saleId),
             )
             val saleMeta = v2Dao.saleMeta(sale.id)
                 ?: error("sale v2 metadata missing: ${sale.id}")
@@ -291,6 +294,9 @@ internal class RoomPosPersistence(
             put("sales_log_json", encodeSalesRecordsJson(snap.salesLog))
             put("reversal_log_json", encodeSaleReversalsJson(snap.reversalLog))
             put("last_checkout_json", snap.lastCheckout?.let(::encodeLastCheckoutJson).orEmpty())
+            put("events_json", encodeMarketEvents(snap.events))
+            put("inventory_levels_json", encodeInventoryLevels(snap.inventoryLevels))
+            put("inventory_movements_json", encodeInventoryMovements(snap.inventoryMovements))
             put("total_sales", snap.totalSales)
             put("tx_count", snap.txCount)
         }
@@ -399,9 +405,11 @@ internal class RoomPosPersistence(
         val products = readProducts()
         val bundles = readBundles()
         val sales = readSales()
-        val reversals = dao.reversals().map { it.toDomain() }
+        val reversalMeta = v2Dao.reversalMeta().associateBy { it.reversalId }
+        val reversals = dao.reversals().map { it.toDomain(reversalMeta[it.id]) }
         val events = v2Dao.events().map { it.toDomain() }
         val inventoryLevels = v2Dao.inventoryLevels().map { it.toDomain() }
+        val inventoryMovements = v2Dao.inventoryMovements().map { it.toDomain() }
         val summary = dao.activeSalesSummary()
         val last = dao.lastCheckout()?.saleId?.let { saleId ->
             sales.find { it.id == saleId }?.toLastCheckout()
@@ -423,6 +431,7 @@ internal class RoomPosPersistence(
             lastCheckout = last,
             events = events,
             inventoryLevels = inventoryLevels,
+            inventoryMovements = inventoryMovements,
         )
     }
 
@@ -457,7 +466,18 @@ internal class RoomPosPersistence(
     private suspend fun readSales(): List<SaleRecord> {
         val lines = dao.saleLines().groupBy { it.saleId }
         val deductions = dao.stockDeductions().groupBy { it.saleId }
-        return dao.sales().map { row -> row.toDomain(lines[row.id].orEmpty(), deductions[row.id].orEmpty()) }
+        val meta = v2Dao.saleMeta().associateBy { it.saleId }
+        val snapshots = v2Dao.saleLineSnapshots().groupBy { it.saleId }
+        val allocations = v2Dao.bundleAllocations().groupBy { it.saleId }
+        return dao.sales().map { row ->
+            row.toDomain(
+                lines[row.id].orEmpty(),
+                deductions[row.id].orEmpty(),
+                meta[row.id],
+                snapshots[row.id].orEmpty(),
+                allocations[row.id].orEmpty(),
+            )
+        }
     }
 
     private suspend fun replaceBusinessData(snap: PosPersistSnapshot) {
@@ -488,6 +508,7 @@ internal class RoomPosPersistence(
         insertProducts(snap.products)
         insertBundleCategories(snap.bundleCategories)
         insertBundles(snap.bundles)
+        snap.events.forEach { v2Dao.upsertEvent(it.toEntity()) }
         replaceCart(snap.cart)
         snap.salesLog.forEachIndexed { index, sale ->
             insertSale(sale, index.toLong())
@@ -505,8 +526,24 @@ internal class RoomPosPersistence(
             )
             val sale = snap.salesLog.first { it.id == reversal.saleId }
             v2Dao.insertReversalMeta(
-                ReversalV2MetaEntity(reversal.id, null, null, sale.paymentMethod.name),
+                ReversalV2MetaEntity(
+                    reversal.id,
+                    reversal.eventId,
+                    reversal.deviceId,
+                    reversal.paymentMethod.takeIf { reversal.eventId != null || reversal.deviceId != null }?.name
+                        ?: sale.paymentMethod.name,
+                ),
             )
+        }
+        if (snap.inventoryLevels.isNotEmpty() || snap.inventoryMovements.isNotEmpty()) {
+            v2Dao.deleteAllInventoryMovements()
+            v2Dao.deleteAllInventoryLevels()
+            if (snap.inventoryLevels.isNotEmpty()) {
+                v2Dao.upsertInventoryLevels(snap.inventoryLevels.map { it.toEntity() })
+            }
+            if (snap.inventoryMovements.isNotEmpty()) {
+                v2Dao.insertInventoryMovements(snap.inventoryMovements.map { it.toEntity() })
+            }
         }
         snap.lastCheckout?.let { dao.replaceLastCheckout(LastCheckoutEntity(saleId = it.saleId)) }
     }
@@ -655,27 +692,43 @@ internal class RoomPosPersistence(
         v2Dao.insertSaleMeta(
             SaleV2MetaEntity(
                 saleId = sale.id,
-                eventId = null,
-                deviceId = null,
-                receiptNumber = "LEGACY-A-${(auditOrder + 1).toString().padStart(4, '0')}",
-                discountType = null,
-                discountValue = null,
-                discountAmount = sale.discount,
-                netAdjustment = 0,
+                eventId = sale.eventId,
+                deviceId = sale.deviceId,
+                receiptNumber = sale.receiptNumber
+                    ?: "LEGACY-A-${(auditOrder + 1).toString().padStart(4, '0')}",
+                discountType = sale.discountType,
+                discountValue = sale.discountValue,
+                discountAmount = sale.discountAmount,
+                netAdjustment = sale.netAdjustment,
             ),
         )
-        val snapshots = sale.checkoutLines.mapIndexed { index, line ->
+        val snapshots = sale.lineFinancialSnapshots.takeIf { it.isNotEmpty() }?.map { row ->
             SaleLineSnapshotEntity(
-                saleId = sale.id,
-                lineIndex = index,
-                unitCostSnapshot = null,
-                originalAmount = line.lineSubtotal,
-                allocatedDiscount = 0,
-                allocatedAdjustment = 0,
-                finalAmount = line.lineSubtotal,
+                sale.id,
+                row.lineIndex,
+                row.unitCostSnapshot,
+                row.originalAmount,
+                row.allocatedDiscount,
+                row.allocatedAdjustment,
+                row.finalAmount,
             )
+        } ?: sale.checkoutLines.mapIndexed { index, line ->
+            SaleLineSnapshotEntity(sale.id, index, null, line.lineSubtotal, 0, 0, line.lineSubtotal)
         }
         if (snapshots.isNotEmpty()) v2Dao.insertSaleLineSnapshots(snapshots)
+        val allocations = sale.bundleComponentAllocations.map { row ->
+            BundleComponentAllocationEntity(
+                sale.id,
+                row.lineIndex,
+                row.allocationIndex,
+                row.productId,
+                row.productNameSnapshot,
+                row.unitCostSnapshot,
+                row.quantity,
+                row.allocatedRevenue,
+            )
+        }
+        if (allocations.isNotEmpty()) v2Dao.insertBundleAllocations(allocations)
     }
 
     private suspend fun moveInventoryInternal(
@@ -793,6 +846,9 @@ internal class RoomPosPersistence(
     private fun SaleEntity.toDomain(
         lines: List<SaleLineEntity>,
         deductions: List<SaleStockDeductionEntity>,
+        meta: SaleV2MetaEntity?,
+        snapshots: List<SaleLineSnapshotEntity>,
+        allocations: List<BundleComponentAllocationEntity>,
     ): SaleRecord = SaleRecord(
         id = id,
         tsMillis = tsMillis,
@@ -816,6 +872,34 @@ internal class RoomPosPersistence(
             }
         },
         stockDeductions = deductions.associate { it.productId to it.quantity },
+        eventId = meta?.eventId,
+        deviceId = meta?.deviceId,
+        receiptNumber = meta?.receiptNumber,
+        discountType = meta?.discountType,
+        discountValue = meta?.discountValue,
+        discountAmount = meta?.discountAmount ?: discount,
+        netAdjustment = meta?.netAdjustment ?: 0,
+        lineFinancialSnapshots = snapshots.map {
+            SaleLineFinancialSnapshot(
+                it.lineIndex,
+                it.unitCostSnapshot,
+                it.originalAmount,
+                it.allocatedDiscount,
+                it.allocatedAdjustment,
+                it.finalAmount,
+            )
+        },
+        bundleComponentAllocations = allocations.map {
+            BundleRevenueAllocation(
+                it.lineIndex,
+                it.allocationIndex,
+                it.productId,
+                it.productNameSnapshot,
+                it.unitCostSnapshot,
+                it.quantity,
+                it.allocatedRevenue,
+            )
+        },
     )
 
     private fun ProductEntity.toDomain(stock: Long?, cost: Long?) =
@@ -860,14 +944,48 @@ internal class RoomPosPersistence(
         updatedAtMillis = updatedAtMillis,
     )
 
+    private fun InventoryLevel.toEntity() =
+        InventoryLevelEntity(productId, location.key, location.type.name, location.eventId, quantity, updatedAtMillis)
+
+    private fun InventoryMovementEntity.toDomain() = InventoryMovement(
+        id = id,
+        productId = productId,
+        eventId = eventId,
+        from = fromLocationKey?.toLocation(),
+        to = toLocationKey?.toLocation(),
+        type = InventoryMovementType.valueOf(movementType),
+        quantity = quantity,
+        relatedTransactionId = relatedTransactionId,
+        occurredAtMillis = occurredAtMillis,
+    )
+
+    private fun InventoryMovement.toEntity() = InventoryMovementEntity(
+        id,
+        productId,
+        eventId,
+        from?.key,
+        to?.key,
+        type.name,
+        quantity,
+        relatedTransactionId,
+        occurredAtMillis,
+    )
+
+    private fun String.toLocation() =
+        if (this == InventoryLocation.GENERAL_KEY) InventoryLocation.General
+        else InventoryLocation.event(removePrefix("EVENT:"))
+
     private fun InventoryLocation.level(productId: String, quantity: Long, now: Long) =
         InventoryLevelEntity(productId, key, type.name, eventId, quantity, now)
 
-    private fun ReversalEntity.toDomain() = SaleReversal(
+    private fun ReversalEntity.toDomain(meta: ReversalV2MetaEntity?) = SaleReversal(
         id = id,
         saleId = saleId,
         tsMillis = tsMillis,
         reason = ReversalReason.valueOf(reason),
+        eventId = meta?.eventId,
+        deviceId = meta?.deviceId,
+        paymentMethod = meta?.paymentMethod?.let(::decodePaymentMethodPersist) ?: PaymentMethod.CASH,
     )
 
     private fun SaleRecord.toLastCheckout() = LastCheckout(
@@ -903,6 +1021,9 @@ internal class RoomPosPersistence(
         val categories = decodeArray("categories_json", ::decodeCategories)
         val bundleCategories = decodeArray("bundle_categories_json", ::decodeBundleCategories)
         val bundles = decodeArray("bundles_json", ::decodeBundles)
+        val events = decodeArray("events_json", ::decodeMarketEvents)
+        val inventoryLevels = decodeArray("inventory_levels_json", ::decodeInventoryLevels)
+        val inventoryMovements = decodeArray("inventory_movements_json", ::decodeInventoryMovements)
         val sales = decodeSalesRecordsJsonResult(requiredString("sales_log_json")).getOrThrow()
         val reversals = decodeArray("reversal_log_json", ::decodeSaleReversalsJson)
         requireUniqueIds("products_json", products.map { it.id })
@@ -932,6 +1053,9 @@ internal class RoomPosPersistence(
             salesLog = sales,
             reversalLog = reversals,
             lastCheckout = linkLastCheckoutToSales(decodedLast, sales),
+            events = events,
+            inventoryLevels = inventoryLevels,
+            inventoryMovements = inventoryMovements,
         )
     }
 

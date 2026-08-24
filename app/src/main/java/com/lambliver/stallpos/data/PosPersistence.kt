@@ -57,6 +57,7 @@ data class PosPersistSnapshot(
     val lastCheckout: LastCheckout? = null,
     val events: List<MarketEvent> = emptyList(),
     val inventoryLevels: List<InventoryLevel> = emptyList(),
+    val inventoryMovements: List<InventoryMovement> = emptyList(),
 )
 
 /** 目錄寫入計畫：`null` 欄位表示不更新該鍵。 */

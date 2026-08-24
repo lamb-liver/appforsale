@@ -17,7 +17,10 @@ internal fun encodeProducts(list: List<Product>): String = JSONArray().apply {
                 .put("name", p.name)
                 .put("price", p.price)
                 .put("categoryId", p.categoryId)
-                .apply { if (p.stock != null) put("stock", p.stock!!) },
+                .apply {
+                    if (p.stock != null) put("stock", p.stock!!)
+                    if (p.cost != null) put("cost", p.cost!!)
+                },
         )
     }
 }.toString()
@@ -30,7 +33,8 @@ internal fun decodeProducts(json: String): List<Product> = runCatching {
             !o.has("stock") || o.isNull("stock") -> null
             else -> o.getLong("stock").coerceAtLeast(0L)
         }
-        Product(o.getString("id"), o.getString("name"), o.getLong("price"), o.optString("categoryId", ""), stock)
+        val cost = if (!o.has("cost") || o.isNull("cost")) null else o.getLong("cost").coerceAtLeast(0L)
+        Product(o.getString("id"), o.getString("name"), o.getLong("price"), o.optString("categoryId", ""), stock, cost)
     }
 }.getOrElse { emptyList() }
 

@@ -104,11 +104,17 @@ internal interface V2RoomDao {
     @Query("SELECT * FROM sale_v2_meta WHERE sale_id = :saleId LIMIT 1")
     suspend fun saleMeta(saleId: String): SaleV2MetaEntity?
 
+    @Query("SELECT * FROM sale_v2_meta ORDER BY sale_id")
+    suspend fun saleMeta(): List<SaleV2MetaEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSaleLineSnapshots(rows: List<SaleLineSnapshotEntity>)
 
     @Query("SELECT * FROM sale_line_snapshots WHERE sale_id = :saleId ORDER BY line_index")
     suspend fun saleLineSnapshots(saleId: String): List<SaleLineSnapshotEntity>
+
+    @Query("SELECT * FROM sale_line_snapshots ORDER BY sale_id, line_index")
+    suspend fun saleLineSnapshots(): List<SaleLineSnapshotEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertBundleAllocations(rows: List<BundleComponentAllocationEntity>)
@@ -116,8 +122,20 @@ internal interface V2RoomDao {
     @Query("SELECT * FROM bundle_component_allocations WHERE sale_id = :saleId ORDER BY line_index, allocation_index")
     suspend fun bundleAllocations(saleId: String): List<BundleComponentAllocationEntity>
 
+    @Query("SELECT * FROM bundle_component_allocations ORDER BY sale_id, line_index, allocation_index")
+    suspend fun bundleAllocations(): List<BundleComponentAllocationEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertReversalMeta(row: ReversalV2MetaEntity)
+
+    @Query("SELECT * FROM reversal_v2_meta ORDER BY reversal_id")
+    suspend fun reversalMeta(): List<ReversalV2MetaEntity>
+
+    @Upsert
+    suspend fun upsertInventoryLevels(rows: List<InventoryLevelEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertInventoryMovements(rows: List<InventoryMovementEntity>)
 
     @Query("SELECT * FROM device_state WHERE slot = 1 LIMIT 1")
     suspend fun deviceState(): DeviceStateEntity?
