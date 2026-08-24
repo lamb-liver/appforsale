@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stallpos-v2",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-24",
+  "vars": {
+    "GOOGLE_CLIENT_IDS": ""
+  },
+  "d1_databases": [
+    {
+      "binding": "POS_DB",
+      "database_name": "stallpos-pos",
+      "migrations_dir": "migrations/pos"
+    },
+    {
+      "binding": "DELETION_DB",
+      "database_name": "stallpos-deletion",
+      "migrations_dir": "migrations/deletion"
+    }
+  ],
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  }
+}
