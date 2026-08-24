@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 internal interface V2RoomDao {
@@ -139,4 +140,73 @@ internal interface V2RoomDao {
 
     @Query("SELECT * FROM device_state WHERE slot = 1 LIMIT 1")
     suspend fun deviceState(): DeviceStateEntity?
+
+    @Upsert
+    suspend fun putDeviceState(row: DeviceStateEntity)
+
+    @Query("SELECT value FROM cloud_state WHERE key = :key LIMIT 1")
+    suspend fun cloudValue(key: String): String?
+
+    @Query("SELECT value FROM cloud_state WHERE key = :key LIMIT 1")
+    fun observeCloudValue(key: String): Flow<String?>
+
+    @Upsert
+    suspend fun putCloudState(rows: List<CloudStateEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertOutbox(row: SyncOutboxEntity)
+
+    @Query(
+        "SELECT * FROM sync_outbox WHERE status = 'PENDING' " +
+            "AND (next_attempt_at_millis IS NULL OR next_attempt_at_millis <= :nowMillis) " +
+            "ORDER BY CASE category WHEN 'MASTER' THEN 0 WHEN 'INVENTORY' THEN 1 ELSE 2 END, " +
+            "CASE entity_type WHEN 'CATEGORY' THEN 0 WHEN 'PRODUCT' THEN 1 WHEN 'BUNDLE' THEN 2 WHEN 'EVENT' THEN 3 ELSE 4 END, " +
+            "created_at_millis, operation_id LIMIT :limit",
+    )
+    suspend fun pendingOutbox(nowMillis: Long, limit: Int): List<SyncOutboxEntity>
+
+    @Query("SELECT COUNT(*) FROM sync_outbox WHERE status = 'PENDING'")
+    suspend fun pendingOutboxCount(): Int
+
+    @Query("SELECT * FROM sync_outbox ORDER BY created_at_millis, operation_id")
+    suspend fun outboxRows(): List<SyncOutboxEntity>
+
+    @Query(
+        "SELECT " +
+            "COALESCE(SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending_count, " +
+            "COALESCE(SUM(CASE WHEN status = 'BLOCKED' THEN 1 ELSE 0 END), 0) AS blocked_count " +
+            "FROM sync_outbox",
+    )
+    fun observeOutboxCounts(): Flow<SyncOutboxCounts>
+
+    @Query(
+        "UPDATE sync_outbox SET status = 'SYNCED', last_error_code = NULL, last_error_message = NULL, " +
+            "next_attempt_at_millis = NULL, updated_at_millis = :nowMillis, synced_at_millis = :nowMillis " +
+            "WHERE operation_id IN (:operationIds)",
+    )
+    suspend fun markOutboxSynced(operationIds: List<String>, nowMillis: Long)
+
+    @Query(
+        "UPDATE sync_outbox SET status = 'BLOCKED', attempt_count = attempt_count + 1, " +
+            "last_error_code = :code, last_error_message = :message, next_attempt_at_millis = NULL, " +
+            "updated_at_millis = :nowMillis WHERE operation_id = :operationId",
+    )
+    suspend fun markOutboxBlocked(operationId: String, code: String, message: String?, nowMillis: Long)
+
+    @Query(
+        "UPDATE sync_outbox SET status = 'PENDING', attempt_count = attempt_count + 1, " +
+            "last_error_code = NULL, last_error_message = :message, next_attempt_at_millis = :nextAttemptAtMillis, " +
+            "updated_at_millis = :nowMillis WHERE operation_id IN (:operationIds)",
+    )
+    suspend fun markOutboxPending(
+        operationIds: List<String>,
+        message: String?,
+        nextAttemptAtMillis: Long,
+        nowMillis: Long,
+    )
 }
+
+internal data class SyncOutboxCounts(
+    @androidx.room.ColumnInfo(name = "pending_count") val pendingCount: Int,
+    @androidx.room.ColumnInfo(name = "blocked_count") val blockedCount: Int,
+)

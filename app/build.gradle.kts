@@ -133,6 +133,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.sqlite)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.sqlcipher.android)
     implementation(libs.kotlinx.collections.immutable)
     ksp(libs.androidx.room.compiler)

@@ -166,8 +166,8 @@ class PosViewModel @JvmOverloads constructor(
 
     private fun startObserving() {
         viewModelScope.launch {
-            combine(posStore.snapshot, posCartMemory) { storeSnap, cart ->
-                storeSnap to buildUiState(storeSnap, cart)
+            combine(posStore.snapshot, posCartMemory, posStore.syncStateFlow) { storeSnap, cart, sync ->
+                storeSnap to buildUiState(storeSnap, cart, sync)
             }.collect { (storeSnap, newState) ->
                 posUiState.update { current ->
                     newState.copy(
@@ -192,6 +192,7 @@ class PosViewModel @JvmOverloads constructor(
     private fun buildUiState(
         snap: PosPersistSnapshot,
         cart: PosCart,
+        sync: SyncUiState,
     ): PosUiState {
         val todayKey = getTodayKey()
         val productPart = snap.products.sumOf { (cart.products[it.id] ?: 0).toLong() * it.price }
@@ -215,6 +216,7 @@ class PosViewModel @JvmOverloads constructor(
             lastCheckout = snap.lastCheckout,
             events = snap.events.toImmutableList(),
             inventoryLevels = snap.inventoryLevels.toImmutableList(),
+            sync = sync,
             subtotal = subtotal,
             todayKey = todayKey,
             todaySales = todaySalesLog.sumOf { it.total + it.tipAmount },
