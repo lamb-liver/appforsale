@@ -25,15 +25,10 @@ export async function handleSync(request: Request, env: Env, auth: AuthContext):
   const results = [];
   for (const operation of batch.operations) {
     const payloadHash = await sha256(canonicalJson(operation));
-    const processed = await env.POS_DB.prepare(
-      "SELECT payload_hash FROM processed_operations WHERE user_id = ? AND operation_id = ?",
-    ).bind(auth.userId, operation.operationId).first<{ payload_hash: string }>();
+    const processed = await processedResult(env.POS_DB, auth.userId, operation.operationId, payloadHash);
     if (processed) {
-      if (processed.payload_hash === payloadHash) results.push(syncResult(operation.operationId, "ACK"));
-      else {
-        operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "SERVER_CONFLICT" });
-        results.push(syncResult(operation.operationId, "BLOCKED", "SERVER_CONFLICT", "Operation ID was reused with different data."));
-      }
+      if (processed.status === "BLOCKED") operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "SERVER_CONFLICT" });
+      results.push(processed);
       continue;
     }
 
@@ -56,8 +51,14 @@ export async function handleSync(request: Request, env: Env, auth: AuthContext):
       if (applied.some((result) => !result.success)) throw new Error("D1 batch failed");
       results.push(syncResult(operation.operationId, "ACK"));
     } catch {
-      operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "INVALID_DATA" });
-      results.push(syncResult(operation.operationId, "BLOCKED", "INVALID_DATA", "Operation could not be applied."));
+      const raced = await processedResult(env.POS_DB, auth.userId, operation.operationId, payloadHash);
+      if (raced) {
+        if (raced.status === "BLOCKED") operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "SERVER_CONFLICT" });
+        results.push(raced);
+      } else {
+        operationalAlert("SYNC_BLOCKED", batch.requestId, { code: "INVALID_DATA" });
+        results.push(syncResult(operation.operationId, "BLOCKED", "INVALID_DATA", "Operation could not be applied."));
+      }
     }
   }
   await env.POS_DB.prepare("UPDATE devices SET last_seen_at_utc=? WHERE id=? AND user_id=?")
@@ -71,7 +72,8 @@ export async function handleBootstrap(
   auth: AuthContext,
   requestId: string,
 ): Promise<Response> {
-  const group = new URL(request.url).searchParams.get("group");
+  const params = new URL(request.url).searchParams;
+  const group = params.get("group");
   const tableByGroup = {
     PRODUCTS: ["categories", "products"],
     BUNDLES: ["bundles"],
@@ -82,14 +84,50 @@ export async function handleBootstrap(
   if (!group || !(group in tableByGroup)) {
     return json({ requestId, code: "INVALID_DATA", message: "Bootstrap group is invalid." }, 400, requestId);
   }
+  const tables = tableByGroup[group as keyof typeof tableByGroup];
+  const cursor = parseBootstrapCursor(params.get("cursor"), tables.length);
+  if (!cursor) return json({ requestId, code: "INVALID_DATA", message: "Bootstrap cursor is invalid." }, 400, requestId);
   const data: unknown[] = [];
-  for (const table of tableByGroup[group as keyof typeof tableByGroup]) {
+  let { tableIndex, rowId } = cursor;
+  let nextCursor: string | null = null;
+  while (tableIndex < tables.length && data.length < BOOTSTRAP_PAGE_SIZE) {
+    const table = tables[tableIndex]!;
+    const remaining = BOOTSTRAP_PAGE_SIZE - data.length;
     const result = await env.POS_DB.prepare(
-      `SELECT payload_json FROM ${table} WHERE user_id = ? ORDER BY rowid LIMIT 500`,
-    ).bind(auth.userId).all<{ payload_json: string }>();
+      `SELECT rowid,payload_json FROM ${table} WHERE user_id = ? AND rowid > ? ORDER BY rowid LIMIT ?`,
+    ).bind(auth.userId, rowId, remaining).all<{ rowid: number; payload_json: string }>();
     for (const row of result.results) data.push(JSON.parse(row.payload_json));
+    if (result.results.length === remaining) {
+      nextCursor = bootstrapCursor(tableIndex, result.results.at(-1)!.rowid);
+      break;
+    }
+    tableIndex += 1;
+    rowId = 0;
   }
-  return json({ requestId, cloudEpoch: auth.cloudEpoch, group, nextCursor: null, data }, 200, requestId);
+  return json({ requestId, cloudEpoch: auth.cloudEpoch, group, nextCursor, data }, 200, requestId);
+}
+
+const BOOTSTRAP_PAGE_SIZE = 500;
+
+function parseBootstrapCursor(value: string | null, tableCount: number): { tableIndex: number; rowId: number } | null {
+  if (value === null) return { tableIndex: 0, rowId: 0 };
+  let decoded: string;
+  try {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    decoded = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
+  } catch {
+    return null;
+  }
+  const match = /^(\d+):(\d+)$/.exec(decoded);
+  if (!match) return null;
+  const tableIndex = Number(match[1]);
+  const rowId = Number(match[2]);
+  return Number.isSafeInteger(tableIndex) && tableIndex >= 0 && tableIndex < tableCount &&
+    Number.isSafeInteger(rowId) && rowId >= 0 ? { tableIndex, rowId } : null;
+}
+
+function bootstrapCursor(tableIndex: number, rowId: number): string {
+  return btoa(`${tableIndex}:${rowId}`).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function statementsForOperation(db: D1Database, userId: string, operation: SyncOperation): D1PreparedStatement[] {
@@ -202,6 +240,16 @@ function boolInt(value: unknown): number {
 
 function syncResult(operationId: string, status: "ACK" | "BLOCKED", code: string | null = null, message: string | null = null) {
   return { operationId, status, code, message };
+}
+
+async function processedResult(db: D1Database, userId: string, operationId: string, payloadHash: string) {
+  const processed = await db.prepare(
+    "SELECT payload_hash FROM processed_operations WHERE user_id = ? AND operation_id = ?",
+  ).bind(userId, operationId).first<{ payload_hash: string }>();
+  if (!processed) return null;
+  return processed.payload_hash === payloadHash
+    ? syncResult(operationId, "ACK")
+    : syncResult(operationId, "BLOCKED", "SERVER_CONFLICT", "Operation ID was reused with different data.");
 }
 
 function blockedBatch(batch: SyncBatchRequest, code: string, message: string): Response {

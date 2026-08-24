@@ -48,6 +48,7 @@ describe("Google ID token verification", () => {
 
   it.each([
     ["wrong audience", { ...validClaims(), aud: "attacker.apps.googleusercontent.com" }],
+    ["multiple audiences", { ...validClaims(), aud: [audience, "attacker.apps.googleusercontent.com"] }],
     ["wrong issuer", { ...validClaims(), iss: "https://attacker.example" }],
     ["expired", { ...validClaims(), exp: Math.floor(Date.now() / 1000) - 1 }],
   ])("rejects %s", async (_name, claims) => {

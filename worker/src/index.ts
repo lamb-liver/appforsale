@@ -74,6 +74,7 @@ const handler = {
         scope.setTag("ops_alert", "HTTP_5XX");
         Sentry.captureException(error);
       });
+      console.error(JSON.stringify({ event: "ops_alert", kind: "HTTP_5XX", requestId }));
       return errorJson(requestId, 500, "INTERNAL_ERROR", "Request could not be completed.");
     }
   },

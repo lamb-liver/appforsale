@@ -9,13 +9,15 @@ const userId = "11000000-0000-4000-8000-000000000090";
 const sourceDevice = "20000000-0000-4000-8000-000000000090";
 const targetDevice = "20000000-0000-4000-8000-000000000091";
 const accessToken = "lifecycle-access";
+let googleSub: string;
 
 beforeEach(async () => {
   await resetPosDb(env.POS_DB);
+  googleSub = `google-lifecycle-${crypto.randomUUID()}`;
   await env.POS_DB.batch([
     env.POS_DB.prepare(
-      "INSERT INTO users (id,google_sub,cloud_epoch,created_at_utc,email) VALUES (?,'google-lifecycle',1,'2026-08-24T00:00:00Z','owner@example.com')",
-    ).bind(userId),
+      "INSERT INTO users (id,google_sub,cloud_epoch,created_at_utc,email) VALUES (?,?,1,'2026-08-24T00:00:00Z','owner@example.com')",
+    ).bind(userId, googleSub),
     env.POS_DB.prepare(
       `INSERT INTO devices (id,user_id,short_code,name,status,cloud_epoch,registered_at_utc,last_seen_at_utc)
        VALUES (?,?,'source','Source','ACTIVE',1,'2026-08-24T00:00:00Z','2026-08-24T00:00:00Z')`,
@@ -38,6 +40,14 @@ describe("device and deletion lifecycle", () => {
     const claim = await claimed.json() as { commitToken: string; bootstrap: Record<string, unknown[]> };
     expect(claim.bootstrap).toMatchObject({ products: [], transactions: [] });
     expect(await activeDevice()).toBe(sourceDevice);
+    const retriedClaim = await api("/v2/devices/transfer/claim", {
+      transferToken,
+      deviceId: targetDevice,
+      deviceName: "Target",
+    });
+    expect(retriedClaim.status).toBe(200);
+    expect((await retriedClaim.json() as { commitToken: string }).commitToken).toBe(claim.commitToken);
+    expect(claim.commitToken).not.toBe(transferToken);
 
     const committed = await api("/v2/devices/transfer/commit", { commitToken: claim.commitToken });
     expect(committed.status).toBe(200);
@@ -50,13 +60,13 @@ describe("device and deletion lifecycle", () => {
   it("keeps the deletion barrier when POS cleanup fails, then reconciles it", async () => {
     await env.POS_DB.prepare(
       `CREATE TRIGGER fail_cloud_delete BEFORE UPDATE OF deleted_at_utc ON users
-       WHEN NEW.google_sub='google-lifecycle' BEGIN SELECT RAISE(ABORT,'simulated failure'); END`,
+       BEGIN SELECT RAISE(ABORT,'simulated failure'); END`,
     ).run();
     const response = await api("/v2/account/cloud", undefined, accessToken, "DELETE");
     expect(response.status).toBe(202);
     expect(await env.DELETION_DB.prepare(
-      "SELECT COUNT(*) AS count FROM deletion_tombstones WHERE google_sub='google-lifecycle'",
-    ).first("count")).toBe(1);
+      "SELECT COUNT(*) AS count FROM deletion_tombstones WHERE google_sub=?",
+    ).bind(googleSub).first("count")).toBe(1);
     expect((await api("/v2/bootstrap?group=PRODUCTS", undefined, accessToken, "GET")).status).toBe(409);
 
     await env.POS_DB.prepare("DROP TRIGGER fail_cloud_delete").run();
@@ -64,6 +74,36 @@ describe("device and deletion lifecycle", () => {
     expect(await env.POS_DB.prepare("SELECT deleted_at_utc FROM users WHERE id=?").bind(userId).first("deleted_at_utc")).toBeTruthy();
     expect(await env.POS_DB.prepare("SELECT email FROM users WHERE id=?").bind(userId).first("email")).toBeNull();
     expect(await env.POS_DB.prepare("SELECT COUNT(*) AS count FROM sessions WHERE user_id=?").bind(userId).first("count")).toBe(0);
+  });
+
+  it("does not truncate transfer bootstrap data at 500 rows", async () => {
+    const rows = Array.from({ length: 501 }, (_, index) => {
+      const id = `category-${index}`;
+      const payload = JSON.stringify({
+        id,
+        categoryType: "PRODUCT",
+        name: `Category ${index}`,
+        sortOrder: index,
+        updatedAtUtc: "2026-08-24T00:00:00Z",
+        deletedAtUtc: null,
+      });
+      return env.POS_DB.prepare(
+        `INSERT INTO categories (user_id,id,category_type,name,sort_order,updated_at_utc,deleted_at_utc,payload_json)
+         VALUES (?,?,?,?,?,?,NULL,?)`,
+      ).bind(userId, id, "PRODUCT", `Category ${index}`, index, "2026-08-24T00:00:00Z", payload);
+    });
+    await env.POS_DB.batch(rows);
+    const created = await api("/v2/devices/transfer", {}, accessToken);
+    expect(created.status, await created.clone().text()).toBe(200);
+    const transferToken = (await created.json() as { transferToken: string }).transferToken;
+    const claimed = await api("/v2/devices/transfer/claim", {
+      transferToken,
+      deviceId: targetDevice,
+      deviceName: "Target",
+    });
+    expect(claimed.status, await claimed.clone().text()).toBe(200);
+    const bootstrap = (await claimed.json() as { bootstrap: { products: unknown[] } }).bootstrap;
+    expect(bootstrap.products).toHaveLength(501);
   });
 });
 

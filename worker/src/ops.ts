@@ -19,10 +19,11 @@ export async function rateLimitResponse(request: Request, env: Env, requestId: s
 }
 
 export function operationalAlert(kind: string, requestId: string, details: Record<string, string | number | boolean> = {}) {
+  console.warn(JSON.stringify({ event: "ops_alert", kind, requestId, ...details }));
   Sentry.withScope((scope) => {
     scope.setTag("ops_alert", kind);
     scope.setTag("request_id", requestId);
-    Object.entries(details).forEach(([key, value]) => scope.setExtra(key, value));
+    Object.entries(details).forEach(([key, value]) => scope.setTag(key, String(value)));
     Sentry.captureMessage(`StallPOS ops alert: ${kind}`, "warning");
   });
 }

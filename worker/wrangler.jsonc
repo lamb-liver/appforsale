@@ -3,11 +3,11 @@
   "name": "stallpos-v2",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-24",
-  "vars": {
-    "GOOGLE_CLIENT_IDS": "",
-    "DASHBOARD_GOOGLE_CLIENT_ID": "",
-    "SENTRY_DSN": "",
-    "EMAIL_FROM": ""
+  "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 }
   },
   "send_email": [
     { "name": "EMAIL" }

@@ -6,12 +6,16 @@
 
 | 設定 | 位置 | 契約 |
 |---|---|---|
-| `SENTRY_DSN` | Worker secret／var | 空值停用；事件不送 user、request、breadcrumb 或 extra |
+| `GOOGLE_CLIENT_IDS`／`DASHBOARD_GOOGLE_CLIENT_ID` | Worker secret／Dashboard var | Google ID Token 允許的 Android／Dashboard client ID |
+| `SENTRY_DSN` | Worker secret／Dashboard var | 空值停用；事件不送 user、request、breadcrumb 或 extra |
 | `STALLPOS_SENTRY_DSN`／`sentryDsn` | Android CI／`local.properties` | 空值停用；不送 PII、request、breadcrumb、view hierarchy 或 screenshot |
 | `EMAIL_FROM` | Worker var | Cloudflare Email Sending 已驗證網域的寄件地址 |
+| `TRANSFER_TOKEN_SECRET` | Worker secret | 至少 32 字元，用於產生可安全重試的短效換機 commit token |
 | `EMAIL` | Worker Send Email binding | Cron 寄送閒置 60 天／7 天提醒；成功後才記錄去重資料 |
 | `AUTH_RATE_LIMITER` | Workers Rate Limiting binding | 每 IP＋auth route 每分鐘 20 次 |
 | `API_RATE_LIMITER` | Workers Rate Limiting binding | 每 IP＋route group 每分鐘 120 次 |
+
+Worker 不把 production 值寫入 `wrangler.jsonc`；請由 Cloudflare Dashboard 或 `wrangler secret put` 設定。`worker/.env.example` 只供型別產生與本機設定參考，不得放入真實憑證。部署會保留遠端變數，並開啟結構化 Workers Logs。
 
 Google email 只有在 ID Token 完成簽章與 claims 驗證、且 `email_verified=true` 時才保存。通知內容不含交易或商品資料。
 

@@ -217,9 +217,8 @@ export async function verifyGoogleIdToken(token: string, audiences: string[]): P
   if (!verified) throw new Error("invalid signature");
 
   const payload = decodePart(parts[1]) as Partial<GoogleClaims>;
-  const audienceValues = typeof payload.aud === "string" ? [payload.aud] : payload.aud;
-  if (!payload.iss || !ISSUERS.has(payload.iss) || !Array.isArray(audienceValues) ||
-      !audienceValues.some((audience) => audiences.includes(audience)) ||
+  if (!payload.iss || !ISSUERS.has(payload.iss) || typeof payload.aud !== "string" ||
+      !audiences.includes(payload.aud) ||
       typeof payload.exp !== "number" || !Number.isSafeInteger(payload.exp) || payload.exp <= Date.now() / 1000 ||
       typeof payload.sub !== "string" || payload.sub.length < 1 || payload.sub.length > 255 ||
       (payload.email !== undefined && typeof payload.email !== "string") ||

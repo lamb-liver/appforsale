@@ -25,18 +25,32 @@ export async function handleClaimTransfer(request: Request, env: Env, requestId:
       typeof body.transferToken !== "string" || body.transferToken.length > 2048 || !isUuid(body.deviceId) ||
       deviceName.length < 1 || deviceName.length > 100) throw new HttpError(400, "INVALID_DATA", "Transfer claim is invalid.");
   const nowUtc = new Date().toISOString();
+  const tokenHash = await sha256(body.transferToken);
+  const commitToken = await transferCommitToken(env.TRANSFER_TOKEN_SECRET, body.transferToken);
   const transfer = await env.POS_DB.prepare(
-    `SELECT id,user_id,source_device_id FROM device_transfers
-     WHERE token_hash=? AND status='REQUESTED' AND expires_at_utc>?`,
-  ).bind(await sha256(body.transferToken), nowUtc).first<{ id: string; user_id: string; source_device_id: string }>();
-  if (!transfer) throw new HttpError(409, "TRANSFER_INVALID", "Transfer token is invalid or expired.");
+    `SELECT id,user_id,source_device_id,status,target_device_id,target_device_name FROM device_transfers
+     WHERE token_hash=? AND status IN ('REQUESTED','CLAIMED') AND expires_at_utc>?`,
+  ).bind(tokenHash, nowUtc).first<TransferClaimRow>();
+  if (!transfer || (transfer.status === "CLAIMED" &&
+      (transfer.target_device_id !== body.deviceId || transfer.target_device_name !== deviceName))) {
+    throw new HttpError(409, "TRANSFER_INVALID", "Transfer token is invalid or expired.");
+  }
   const owner = await env.POS_DB.prepare("SELECT user_id FROM devices WHERE id=?").bind(body.deviceId).first<{ user_id: string }>();
   if (owner && owner.user_id !== transfer.user_id) throw new HttpError(409, "DEVICE_CONFLICT", "Device belongs to another account.");
-  const commitToken = randomToken();
-  await env.POS_DB.prepare(
-    `UPDATE device_transfers SET target_device_id=?,target_device_name=?,commit_token_hash=?,status='CLAIMED',claimed_at_utc=?
-     WHERE id=? AND status='REQUESTED'`,
-  ).bind(body.deviceId, deviceName, await sha256(commitToken), nowUtc, transfer.id).run();
+  if (transfer.status === "REQUESTED") {
+    const claimed = await env.POS_DB.prepare(
+      `UPDATE device_transfers SET target_device_id=?,target_device_name=?,commit_token_hash=?,status='CLAIMED',claimed_at_utc=?
+       WHERE id=? AND status='REQUESTED'`,
+    ).bind(body.deviceId, deviceName, await sha256(commitToken), nowUtc, transfer.id).run();
+    if (claimed.meta.changes !== 1) {
+      const winner = await env.POS_DB.prepare(
+        "SELECT status,target_device_id,target_device_name FROM device_transfers WHERE id=?",
+      ).bind(transfer.id).first<Pick<TransferClaimRow, "status" | "target_device_id" | "target_device_name">>();
+      if (winner?.status !== "CLAIMED" || winner.target_device_id !== body.deviceId || winner.target_device_name !== deviceName) {
+        throw new HttpError(409, "TRANSFER_INVALID", "Transfer token was already claimed.");
+      }
+    }
+  }
   return json({ requestId, commitToken, bootstrap: await bootstrapFor(env.POS_DB, transfer.user_id) }, 200, requestId);
 }
 
@@ -125,7 +139,7 @@ async function bootstrapFor(db: D1Database, userId: string): Promise<Record<stri
   for (const [group, tables] of Object.entries(groups)) {
     result[group] = [];
     for (const table of tables) {
-      const rows = await db.prepare(`SELECT payload_json FROM ${table} WHERE user_id=? ORDER BY rowid LIMIT 500`)
+      const rows = await db.prepare(`SELECT payload_json FROM ${table} WHERE user_id=? ORDER BY rowid`)
         .bind(userId).all<{ payload_json: string }>();
       result[group]!.push(...rows.results.map((row) => JSON.parse(row.payload_json)));
     }
@@ -142,4 +156,26 @@ async function bootstrapFor(db: D1Database, userId: string): Promise<Record<stri
     updatedAtUtc: row.updated_at_utc,
   }));
   return result;
+}
+
+type TransferClaimRow = {
+  id: string;
+  user_id: string;
+  source_device_id: string;
+  status: "REQUESTED" | "CLAIMED";
+  target_device_id: string | null;
+  target_device_name: string | null;
+};
+
+async function transferCommitToken(secret: string, transferToken: string): Promise<string> {
+  if (secret.length < 32) throw new HttpError(503, "TRANSFER_NOT_CONFIGURED", "Device transfer is unavailable.");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const bytes = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(transferToken)));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
