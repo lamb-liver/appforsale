@@ -39,6 +39,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 )
 internal abstract class StallPosV2Database : RoomDatabase() {
     abstract fun posDao(): PosRoomDao
+    abstract fun v2Dao(): V2RoomDao
 
     companion object {
         @Volatile

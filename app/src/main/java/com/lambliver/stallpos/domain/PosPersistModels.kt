@@ -16,6 +16,8 @@ data class Product(
     val categoryId: String = "",
     /** `null` = 不追蹤庫存（無上限）；非 null = 目前可售數量 */
     val stock: Long? = null,
+    /** `null` = 成本未知，不得當作 0。 */
+    val cost: Long? = null,
 )
 
 /** 套組專用分類（與一般商品 [Category] 分開） */
