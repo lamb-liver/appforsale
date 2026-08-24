@@ -1,6 +1,7 @@
 package com.lambliver.stallpos
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.lambliver.stallpos.data.*
@@ -82,6 +83,52 @@ class V2RoomMigrationTest {
         assertEquals(-1L, reopened.posDao().products().single().stock)
         assertFalse(context.getDatabasePath(name).readBytes().isEmpty())
         reopened.close()
+    }
+
+    @Test
+    fun orphanReversal_abortsMigrationAndLeavesV1FileAtVersionOne() = runBlocking {
+        val name = databaseName()
+        createLegacyDatabase(name)
+        SQLiteDatabase.openDatabase(
+            context.getDatabasePath(name).path,
+            null,
+            SQLiteDatabase.OPEN_READWRITE,
+        ).use { db ->
+            db.setForeignKeyConstraintsEnabled(false)
+            db.execSQL(
+                "INSERT INTO reversals(id, audit_order, sale_id, ts_millis, reason) " +
+                    "VALUES('orphan', 2, 'missing', 1, 'UNDO_LAST_CHECKOUT')",
+            )
+        }
+
+        val migrated = Room.databaseBuilder(context, StallPosV2Database::class.java, name)
+            .addMigrations(V2Migration.FROM_1_TO_2)
+            .allowMainThreadQueries()
+            .build()
+        assertTrue(runCatching { migrated.openHelper.writableDatabase }.isFailure)
+        migrated.close()
+
+        SQLiteDatabase.openDatabase(
+            context.getDatabasePath(name).path,
+            null,
+            SQLiteDatabase.OPEN_READONLY,
+        ).use { db ->
+            assertEquals(1, db.version)
+            assertEquals(2L, db.rawQuery("SELECT COUNT(*) FROM reversals", null).use { it.moveToFirst(); it.getLong(0) })
+        }
+    }
+
+    @Test
+    fun duplicateSaleUuid_isRejectedByV1PrimaryKey() = runBlocking {
+        val name = databaseName()
+        val legacy = Room.databaseBuilder(context, StallPosDatabase::class.java, name)
+            .allowMainThreadQueries()
+            .build()
+        val sale = SaleEntity("duplicate", 0, 1, "2026-08-24", 1, 0, 1, "CASH", 0)
+        legacy.posDao().insertSale(sale)
+        assertTrue(runCatching { legacy.posDao().insertSale(sale.copy(auditOrder = 1)) }.isFailure)
+        assertEquals(1, legacy.posDao().sales().size)
+        legacy.close()
     }
 
     private suspend fun createLegacyDatabase(name: String) {
