@@ -2,6 +2,7 @@ import { createExecutionContext, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import { handleGoogleAuth } from "../src/auth";
+import { handleDashboardLogin } from "../src/dashboard-auth";
 import { resetPosDb } from "./db";
 
 const audience = "stallpos-test.apps.googleusercontent.com";
@@ -18,6 +19,16 @@ describe("Google ID token verification", () => {
       body: JSON.stringify({ idToken: "missing-config", deviceId, deviceName: "Pixel" }),
     });
     await expect(handleGoogleAuth(request, { POS_DB: env.POS_DB } as unknown as Env, "request-id"))
+      .rejects.toMatchObject({ status: 503, code: "AUTH_NOT_CONFIGURED" });
+  });
+
+  it("reports unavailable dashboard auth when its Google client is not configured", async () => {
+    const request = new Request("https://stallpos.test/v2/auth/dashboard", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: "missing-config" }),
+    });
+    await expect(handleDashboardLogin(request, { POS_DB: env.POS_DB } as unknown as Env, "request-id"))
       .rejects.toMatchObject({ status: 503, code: "AUTH_NOT_CONFIGURED" });
   });
 

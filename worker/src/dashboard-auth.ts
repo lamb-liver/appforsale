@@ -9,7 +9,7 @@ export async function handleDashboardLogin(request: Request, env: Env, requestId
   if (Object.keys(body).some((key) => key !== "idToken") || typeof body.idToken !== "string" || body.idToken.length > 16_384) {
     throw new HttpError(400, "INVALID_DATA", "Dashboard login request is invalid.");
   }
-  const clientId = env.DASHBOARD_GOOGLE_CLIENT_ID.trim();
+  const clientId = env.DASHBOARD_GOOGLE_CLIENT_ID?.trim() ?? "";
   if (!clientId) throw new HttpError(503, "AUTH_NOT_CONFIGURED", "Dashboard login is unavailable.");
   let sub: string;
   try {
