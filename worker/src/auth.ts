@@ -30,8 +30,6 @@ export async function handleGoogleAuth(request: Request, env: Env, requestId: st
   }
 
   const intent = (body.intent ?? "SIGN_IN") as LoginIntent;
-  const verifiedEmail = claims.email_verified === true && typeof claims.email === "string" &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claims.email) && claims.email.length <= 320 ? claims.email : null;
   const tombstone = await latestTombstone(env.DELETION_DB, claims.sub);
   let user = await env.POS_DB.prepare(
     "SELECT id, cloud_epoch, created_at_utc FROM users WHERE google_sub = ?",
@@ -60,11 +58,9 @@ export async function handleGoogleAuth(request: Request, env: Env, requestId: st
     const epoch = tombstone ? tombstone.deletion_epoch + 1 : 1;
     const createdAtUtc = tombstone ? strictlyAfter(tombstone.requested_at_utc) : new Date().toISOString();
     await env.POS_DB.prepare(
-      "INSERT INTO users (id, google_sub, cloud_epoch, created_at_utc, email) VALUES (?, ?, ?, ?, ?)",
-    ).bind(id, claims.sub, epoch, createdAtUtc, verifiedEmail).run();
+      "INSERT INTO users (id, google_sub, cloud_epoch, created_at_utc) VALUES (?, ?, ?, ?)",
+    ).bind(id, claims.sub, epoch, createdAtUtc).run();
     user = { id, cloud_epoch: epoch, created_at_utc: createdAtUtc };
-  } else if (verifiedEmail) {
-    await env.POS_DB.prepare("UPDATE users SET email=? WHERE id=?").bind(verifiedEmail, user.id).run();
   }
 
   const deviceId = body.deviceId as string;
@@ -220,9 +216,7 @@ export async function verifyGoogleIdToken(token: string, audiences: string[]): P
   if (!payload.iss || !ISSUERS.has(payload.iss) || typeof payload.aud !== "string" ||
       !audiences.includes(payload.aud) ||
       typeof payload.exp !== "number" || !Number.isSafeInteger(payload.exp) || payload.exp <= Date.now() / 1000 ||
-      typeof payload.sub !== "string" || payload.sub.length < 1 || payload.sub.length > 255 ||
-      (payload.email !== undefined && typeof payload.email !== "string") ||
-      (payload.email_verified !== undefined && typeof payload.email_verified !== "boolean")) throw new Error("invalid claims");
+      typeof payload.sub !== "string" || payload.sub.length < 1 || payload.sub.length > 255) throw new Error("invalid claims");
   return payload as GoogleClaims;
 }
 

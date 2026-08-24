@@ -55,6 +55,10 @@ remain local `PENDING` and are not converted to permanent blocked data.
 - `DELETE /v2/account/cloud` and `DELETE /v2/account` append to `DELETION_DB`
   before mutating `POS_DB`. A `202 DELETION_PENDING` still means the barrier is
   active and scheduled reconciliation must finish cleanup.
+- v2.0 does not automatically delete inactive accounts or send inactivity
+  warnings. Account and business data remain until the user explicitly requests
+  Cloud Delete or Account Delete; inactivity retention rules and advance
+  notifications are Post-MVP.
 - Re-enable requires explicit `REENABLE`; account recreation after deletion
   requires `CREATE_AFTER_DELETE` and creates a generation newer than the latest
   tombstone.

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { rateLimitResponse, runScheduledOps, sendInactivityNotifications, sentryOptions } from "../src/ops";
+import { rateLimitResponse, runScheduledOps, sentryOptions } from "../src/ops";
 import { resetPosDb } from "./db";
 
 const now = new Date("2026-08-24T12:00:00Z");
@@ -18,29 +18,10 @@ describe("operations gates", () => {
     expect(await env.POS_DB.prepare("SELECT id FROM audit_logs").first("id")).toBe("new-audit");
   });
 
-  it("sends each 60-day inactivity warning once per activity baseline", async () => {
-    await seedUser("mail-user", "mail-sub", "2024-10-20T00:00:00Z", "owner@example.com");
-    await seedUser("mail-user-seven", "mail-sub-seven", "2024-08-25T00:00:00Z", "seven@example.com");
-    const sent: EmailMessageBuilder[] = [];
-    const sender = {
-      async send(message: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> {
-        sent.push(message as EmailMessageBuilder);
-        return { messageId: `test-${sent.length}` };
-      },
-    };
-    const opsEnv = { POS_DB: env.POS_DB, EMAIL_FROM: "notify@example.com" } as unknown as Env;
-    expect(await sendInactivityNotifications(opsEnv, now, sender)).toBe(2);
-    expect(await sendInactivityNotifications(opsEnv, now, sender)).toBe(0);
-    expect(sent).toHaveLength(2);
-    expect(sent).toEqual(expect.arrayContaining([
-      expect.objectContaining({ to: "owner@example.com", subject: expect.stringContaining("60") }),
-      expect.objectContaining({ to: "seven@example.com", subject: expect.stringContaining("7") }),
-    ]));
-  });
-
-  it("skips inactivity email when the sender address is not configured", async () => {
-    const sender = { send: async () => ({ messageId: "unused" }) };
-    expect(await sendInactivityNotifications({ POS_DB: env.POS_DB } as unknown as Env, now, sender)).toBe(0);
+  it("keeps inactive cloud accounts until the user explicitly deletes them", async () => {
+    await seedUser("inactive-user", "inactive-sub", "2023-01-01T00:00:00Z");
+    await runScheduledOps(env, now);
+    expect(await env.POS_DB.prepare("SELECT id FROM users WHERE id='inactive-user'").first("id")).toBe("inactive-user");
   });
 
   it("fails closed when the native rate limiter rejects a request", async () => {
@@ -70,10 +51,10 @@ describe("operations gates", () => {
   });
 });
 
-async function seedUser(id: string, sub: string, created: string, email: string | null = null) {
+async function seedUser(id: string, sub: string, created: string) {
   await env.POS_DB.prepare(
-    "INSERT INTO users (id,google_sub,cloud_epoch,created_at_utc,email) VALUES (?,?,1,?,?)",
-  ).bind(id, sub, created, email).run();
+    "INSERT INTO users (id,google_sub,cloud_epoch,created_at_utc) VALUES (?,?,1,?)",
+  ).bind(id, sub, created).run();
 }
 
 function audit(id: string, occurred: string): D1PreparedStatement {

@@ -46,17 +46,7 @@ describe("Google ID token verification", () => {
     expect(typeof body.accessToken).toBe("string");
     expect(typeof body.refreshToken).toBe("string");
     expect(await env.POS_DB.prepare("SELECT google_sub FROM users").first("google_sub")).toBe("google-sub-123");
-    expect(await env.POS_DB.prepare("SELECT email FROM users").first("email")).toBe("owner@example.com");
-  });
-
-  it("does not retain an unverified Google email", async () => {
-    const key = await rsaKey("unverified-email-key");
-    mockJwks(key.publicJwk);
-    const idToken = await jwt(key.privateKey, "unverified-email-key", {
-      ...validClaims("google-unverified-email"), email: "owner@example.com", email_verified: false,
-    });
-    expect((await auth(idToken)).status).toBe(200);
-    expect(await env.POS_DB.prepare("SELECT email FROM users WHERE google_sub='google-unverified-email'").first("email")).toBeNull();
+    expect(await env.POS_DB.prepare("SELECT email FROM users").first("email")).toBeNull();
   });
 
   it("rejects forged claims with an invalid signature", async () => {

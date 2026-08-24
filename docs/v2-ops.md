@@ -9,15 +9,13 @@
 | `GOOGLE_CLIENT_IDS`／`DASHBOARD_GOOGLE_CLIENT_ID` | Worker secret／Dashboard var | Google ID Token 允許的 Android／Dashboard client ID |
 | `SENTRY_DSN` | Worker secret／Dashboard var | 空值停用；事件不送 user、request、breadcrumb 或 extra |
 | `STALLPOS_SENTRY_DSN`／`sentryDsn` | Android CI／`local.properties` | 空值停用；不送 PII、request、breadcrumb、view hierarchy 或 screenshot |
-| `EMAIL_FROM` | Worker var | Cloudflare Email Sending 已驗證網域的寄件地址 |
 | `TRANSFER_TOKEN_SECRET` | Worker secret | 至少 32 字元，用於產生可安全重試的短效換機 commit token |
-| `EMAIL` | Worker Send Email binding | Cron 寄送閒置 60 天／7 天提醒；成功後才記錄去重資料 |
 | `AUTH_RATE_LIMITER` | Workers Rate Limiting binding | 每 IP＋auth route 每分鐘 20 次 |
 | `API_RATE_LIMITER` | Workers Rate Limiting binding | 每 IP＋route group 每分鐘 120 次 |
 
 Worker 不把 production 值寫入 `wrangler.jsonc`；請由 Cloudflare Dashboard 或 `wrangler secret put` 設定。`worker/.env.example` 只供型別產生與本機設定參考，不得放入真實憑證。部署會保留遠端變數，並開啟結構化 Workers Logs。
 
-Google email 只有在 ID Token 完成簽章與 claims 驗證、且 `email_verified=true` 時才保存。通知內容不含交易或商品資料。
+v2.0 不因帳號未活動而自動刪除資料，也不寄送未活動通知。雲端帳號與營運資料只會在使用者主動執行 Cloud Delete 或 Account Delete 後刪除；未活動帳號保存期限與事前通知留待 Post-MVP 再評估。Worker 不保存 Google email；維運 Audit 仍依既定 180 天 retention 清理。
 
 ## 告警
 
@@ -28,7 +26,6 @@ Sentry 以 `ops_alert` tag 分流：
 - `SYNC_ERROR`
 - `AUTHORIZATION_FAILURE`
 - `RATE_LIMIT`
-- `INACTIVITY_EMAIL_FAILED`
 
 Dashboard／告警查詢只能使用 request ID、狀態、錯誤碼與計數，不得加入 token、email、完整交易或商品 payload。Cron 每日刪除超過 180 天的 `audit_logs`。
 
@@ -57,7 +54,6 @@ npm run restore-drill
 CI 必須同時通過 Android unit／lint／instrumented、production-signed v1.5 upgrade、Worker typecheck／unit／integration、雙 D1 migration、Worker dry-run、Dashboard browser smoke 與 Restore Drill。另需人工確認：
 
 - Android 與 Worker Sentry project 可收到去識別測試事件及上述 alerts。
-- Cloudflare Email Sending 網域可寄出 60 天與 7 天測試信。
 - 正式雙 D1 Restore Drill 完成並留存紀錄。
 - Cloudflare production deploy、Dashboard Google Login 與完整裝置 E2E 通過。
 
