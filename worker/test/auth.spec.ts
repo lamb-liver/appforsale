@@ -1,6 +1,7 @@
 import { createExecutionContext, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
+import { handleGoogleAuth } from "../src/auth";
 import { resetPosDb } from "./db";
 
 const audience = "stallpos-test.apps.googleusercontent.com";
@@ -10,6 +11,16 @@ afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => resetPosDb(env.POS_DB));
 
 describe("Google ID token verification", () => {
+  it("reports unavailable auth when Google clients are not configured", async () => {
+    const request = new Request("https://stallpos.test/v2/auth/google", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: "missing-config", deviceId, deviceName: "Pixel" }),
+    });
+    await expect(handleGoogleAuth(request, { POS_DB: env.POS_DB } as unknown as Env, "request-id"))
+      .rejects.toMatchObject({ status: 503, code: "AUTH_NOT_CONFIGURED" });
+  });
+
   it("trusts sub only after a valid Google JWKS signature and claims", async () => {
     const key = await rsaKey("google-key");
     mockJwks(key.publicJwk);

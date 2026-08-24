@@ -19,7 +19,7 @@ export async function handleGoogleAuth(request: Request, env: Env, requestId: st
       (body.forceDevice !== undefined && typeof body.forceDevice !== "boolean")) {
     throw new HttpError(400, "INVALID_DATA", "Google auth request is invalid.");
   }
-  const audiences = env.GOOGLE_CLIENT_IDS.split(",").map((value) => value.trim()).filter(Boolean);
+  const audiences = (env.GOOGLE_CLIENT_IDS ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   if (audiences.length === 0) throw new HttpError(503, "AUTH_NOT_CONFIGURED", "Google auth is unavailable.");
 
   let claims: GoogleClaims;
