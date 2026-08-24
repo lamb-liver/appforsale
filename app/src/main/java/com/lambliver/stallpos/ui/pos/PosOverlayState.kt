@@ -39,6 +39,7 @@ internal class PosOverlayState(
     var pendingRestoreUri by mutableStateOf<Uri?>(null)
     var settingsMenuExpanded by mutableStateOf(false)
     var showExitConfirmDialog by mutableStateOf(false)
+    var showNonCashVoidConfirm by mutableStateOf(false)
 
     val dismissProductSheet: () -> Unit = {
         scope.launch { productActionSheetState.hide(); productForAction = null }
@@ -84,11 +85,13 @@ internal class PosOverlayState(
         onExportCsv: () -> Unit,
         onBackupJson: () -> Unit,
         onRestoreJson: () -> Unit,
+        uiState: PosUiState,
     ) {
         event.toSheetOverlayOrNull()?.let { sheetOverlay = it }
         when (event) {
             PosUiEvent.ShowDiscountSheet,
             PosUiEvent.ShowDashboardSheet,
+            PosUiEvent.ShowLocalOperationsSheet,
             PosUiEvent.ShowSponsorSheet,
             -> Unit
             PosUiEvent.RequestExportCsv -> onExportCsv()
@@ -98,7 +101,13 @@ internal class PosOverlayState(
             is PosUiEvent.CategoryLongPress -> categoryForAction = event.category
             is PosUiEvent.BundleLongPress -> bundleForAction = event.bundle
             is PosUiEvent.BundleCategoryLongPress -> bundleCategoryForAction = event.category
-            PosUiEvent.UndoCheckout -> vm.onUndoClicked()
+            PosUiEvent.UndoCheckout -> {
+                if (uiState.requiresNonCashVoidWarning()) {
+                    showNonCashVoidConfirm = true
+                } else {
+                    vm.onUndoClicked()
+                }
+            }
             PosUiEvent.ClearCart -> vm.onEvent(com.lambliver.stallpos.domain.PosEvent.ClearCart)
             PosUiEvent.BeginCheckout -> vm.beginCheckoutSheet()
             is PosUiEvent.SetProductCartQty -> vm.onUpdateCart(event.productId, event.qty)
@@ -112,6 +121,7 @@ internal class PosOverlayState(
     fun blocksExitConfirmation(uiState: PosUiState, showTour: Boolean, numpadExpanded: Boolean): Boolean =
         showTour ||
             showExitConfirmDialog ||
+            showNonCashVoidConfirm ||
             numpadExpanded ||
             settingsMenuExpanded ||
             uiState.dialogState != DialogState.None ||

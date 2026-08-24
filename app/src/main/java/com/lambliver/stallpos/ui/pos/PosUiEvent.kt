@@ -10,6 +10,7 @@ import com.lambliver.stallpos.domain.Product
 sealed interface PosUiEvent {
     data object ShowDiscountSheet : PosUiEvent
     data object ShowDashboardSheet : PosUiEvent
+    data object ShowLocalOperationsSheet : PosUiEvent
     data object ShowSponsorSheet : PosUiEvent
     data object RequestExportCsv : PosUiEvent
     data object RequestBackupJson : PosUiEvent

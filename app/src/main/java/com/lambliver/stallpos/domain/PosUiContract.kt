@@ -81,6 +81,9 @@ data class PosUiState(
     val reversalLog: ImmutableList<SaleReversal> = persistentListOf(),
     val todaySalesLog: ImmutableList<SaleRecord> = persistentListOf(),
     val lastCheckout: LastCheckout? = null,
+    val events: ImmutableList<MarketEvent> = persistentListOf(),
+    val inventoryLevels: ImmutableList<InventoryLevel> = persistentListOf(),
+    val sync: SyncUiState = SyncUiState.LocalOnly,
     val subtotal: Long = 0L,
     /**
      * 歷史欄位：恒等於 [subtotal]（目錄小計）。
@@ -130,8 +133,21 @@ data class PosUiState(
 sealed interface PosEvent {
     data class SetCartQty(val productId: String, val qty: Int) : PosEvent
     data class SetBundleCartQty(val bundleId: String, val qty: Int) : PosEvent
-    data class AddProduct(val name: String, val price: Long, val categoryId: String = "", val stock: Long? = null) : PosEvent
-    data class UpdateProduct(val id: String, val name: String, val price: Long, val categoryId: String = "", val stock: Long? = null) : PosEvent
+    data class AddProduct(
+        val name: String,
+        val price: Long,
+        val categoryId: String = "",
+        val stock: Long? = null,
+        val cost: Long? = null,
+    ) : PosEvent
+    data class UpdateProduct(
+        val id: String,
+        val name: String,
+        val price: Long,
+        val categoryId: String = "",
+        val stock: Long? = null,
+        val cost: Long? = null,
+    ) : PosEvent
     data class DeleteProduct(val productId: String) : PosEvent
     data class SetProductStock(val productId: String, val stock: Long?) : PosEvent
     data class AddCategory(val name: String) : PosEvent
@@ -158,6 +174,34 @@ sealed interface PosEvent {
     data class ExportCsv(val target: DocumentTarget) : PosEvent
     data class ExportBackupJson(val target: DocumentTarget) : PosEvent
     data class ImportBackupJson(val target: DocumentTarget) : PosEvent
+    data class CreateMarketEvent(
+        val name: String,
+        val type: MarketEventType,
+        val location: String,
+    ) : PosEvent
+    data class ChangeMarketEventStatus(val eventId: String, val status: MarketEventStatus) : PosEvent
+    data class MoveInventory(
+        val productId: String,
+        val quantity: Long,
+        val from: InventoryLocation?,
+        val to: InventoryLocation?,
+        val type: InventoryMovementType,
+    ) : PosEvent
+    data class CloseMarketEvent(val eventId: String) : PosEvent
+}
+
+enum class SyncUiStatus { LOCAL_ONLY, LOADING, SYNCED, PENDING, BLOCKED, ERROR }
+
+@Immutable
+data class SyncUiState(
+    val status: SyncUiStatus,
+    val pendingCount: Int = 0,
+    val blockedCount: Int = 0,
+    val message: String? = null,
+) {
+    companion object {
+        val LocalOnly = SyncUiState(SyncUiStatus.LOCAL_ONLY)
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

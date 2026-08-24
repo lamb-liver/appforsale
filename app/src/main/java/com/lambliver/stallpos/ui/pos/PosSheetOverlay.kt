@@ -4,5 +4,6 @@ package com.lambliver.stallpos.ui.pos
 internal enum class PosSheetOverlay {
     Discount,
     Dashboard,
+    LocalOperations,
     Sponsor,
 }

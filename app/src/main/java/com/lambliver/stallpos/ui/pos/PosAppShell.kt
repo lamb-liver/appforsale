@@ -141,6 +141,7 @@ internal fun PosAppShell(
                     arrayOf("application/json", "application/octet-stream"),
                 )
             },
+            uiState = uiState,
         )
     }
 
@@ -236,6 +237,12 @@ internal fun PosAppShell(
         onDismissSponsorSheet = { overlay.sheetOverlay = null },
         showExitConfirmDialog = overlay.showExitConfirmDialog,
         onDismissExitConfirm = { overlay.showExitConfirmDialog = false },
+        showNonCashVoidConfirm = overlay.showNonCashVoidConfirm,
+        onDismissNonCashVoidConfirm = { overlay.showNonCashVoidConfirm = false },
+        onConfirmNonCashVoid = {
+            overlay.showNonCashVoidConfirm = false
+            vm.onUndoClicked()
+        },
         pendingRestoreUri = overlay.pendingRestoreUri,
         onDismissRestoreConfirm = { overlay.pendingRestoreUri = null },
         onConfirmRestore = { uri -> vm.onEvent(PosEvent.ImportBackupJson(DocumentTarget(uri.toString()))) },

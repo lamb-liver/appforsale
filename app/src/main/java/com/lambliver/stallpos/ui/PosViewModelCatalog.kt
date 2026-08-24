@@ -9,8 +9,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-internal fun PosViewModel.addProduct(name: String, price: Long, categoryId: String, stock: Long?) {
-    val newProduct = Product(UUID.randomUUID().toString(), name, price, categoryId, stock)
+internal fun PosViewModel.addProduct(name: String, price: Long, categoryId: String, stock: Long?, cost: Long?) {
+    val newProduct = Product(UUID.randomUUID().toString(), name, price, categoryId, stock, cost)
     val updated = posUiState.value.products + newProduct
     viewModelScope.launch {
         try {
@@ -23,9 +23,16 @@ internal fun PosViewModel.addProduct(name: String, price: Long, categoryId: Stri
     }
 }
 
-internal fun PosViewModel.updateProduct(id: String, name: String, price: Long, categoryId: String, stock: Long?) {
+internal fun PosViewModel.updateProduct(
+    id: String,
+    name: String,
+    price: Long,
+    categoryId: String,
+    stock: Long?,
+    cost: Long?,
+) {
     val updated = posUiState.value.products.map {
-        if (it.id == id) it.copy(name = name, price = price, categoryId = categoryId, stock = stock) else it
+        if (it.id == id) it.copy(name = name, price = price, categoryId = categoryId, stock = stock, cost = cost) else it
     }
     viewModelScope.launch {
         try {

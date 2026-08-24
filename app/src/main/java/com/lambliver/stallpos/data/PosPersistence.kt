@@ -33,6 +33,8 @@ interface PosPersistence {
     suspend fun saveEvent(event: MarketEvent): Unit = error("Events require v2 Room persistence")
     suspend fun changeEventStatus(eventId: String, status: MarketEventStatus): Unit =
         error("Events require v2 Room persistence")
+    suspend fun closeEventAndReturnInventory(eventId: String): Unit =
+        error("Events require v2 Room persistence")
     suspend fun moveInventory(
         productId: String,
         quantity: Long,

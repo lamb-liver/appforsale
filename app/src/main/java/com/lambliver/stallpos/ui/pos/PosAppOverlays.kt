@@ -53,6 +53,9 @@ internal fun PosAppOverlays(
     onDismissSponsorSheet: () -> Unit,
     showExitConfirmDialog: Boolean,
     onDismissExitConfirm: () -> Unit,
+    showNonCashVoidConfirm: Boolean,
+    onDismissNonCashVoidConfirm: () -> Unit,
+    onConfirmNonCashVoid: () -> Unit,
     pendingRestoreUri: Uri?,
     onDismissRestoreConfirm: () -> Unit,
     onConfirmRestore: (Uri) -> Unit,
@@ -62,6 +65,14 @@ internal fun PosAppOverlays(
         visible = sheetOverlay == PosSheetOverlay.Sponsor,
         onDismiss = onDismissSponsorSheet,
     )
+
+    if (sheetOverlay == PosSheetOverlay.LocalOperations) {
+        LocalOperationsBottomSheet(
+            uiState = uiState,
+            onDismiss = onDismissSponsorSheet,
+            onEvent = vm::onEvent,
+        )
+    }
 
     uiState.checkoutSheetSnapshot?.let { pricingSnap ->
         CheckoutBottomSheet(
@@ -78,6 +89,8 @@ internal fun PosAppOverlays(
         DashboardBottomSheet(
             sheetState = dashboardSheetState,
             todayLogs = uiState.todaySalesLog,
+            allLogs = uiState.salesLog,
+            reversals = uiState.reversalLog,
             products = uiState.products,
             currency = currency,
             onDismiss = onHideDashboardSheet,
@@ -184,8 +197,8 @@ internal fun PosAppOverlays(
             categories = uiState.categories,
             onDismiss = { vm.onEvent(PosEvent.DismissDialog) },
             onAddCategory = { vm.onEvent(PosEvent.AddCategory(it)) },
-            onConfirm = { name, price, catId, stock ->
-                vm.onEvent(PosEvent.AddProduct(name, price, catId, stock))
+            onConfirm = { name, price, catId, stock, cost ->
+                vm.onEvent(PosEvent.AddProduct(name, price, catId, stock, cost))
             },
         )
 
@@ -196,8 +209,8 @@ internal fun PosAppOverlays(
                 categories = uiState.categories,
                 onDismiss = { vm.onEvent(PosEvent.DismissDialog) },
                 onAddCategory = { vm.onEvent(PosEvent.AddCategory(it)) },
-                onConfirm = { name, price, catId, stock ->
-                    vm.onEvent(PosEvent.UpdateProduct(dialog.product.id, name, price, catId, stock))
+                onConfirm = { name, price, catId, stock, cost ->
+                    vm.onEvent(PosEvent.UpdateProduct(dialog.product.id, name, price, catId, stock, cost))
                 },
             )
         }
@@ -282,6 +295,22 @@ internal fun PosAppOverlays(
                     )
                 }
             },
+        )
+    }
+
+    if (showNonCashVoidConfirm) {
+        AlertDialog(
+            onDismissRequest = onDismissNonCashVoidConfirm,
+            title = { Text("作廢非現金交易？") },
+            text = {
+                Text("這筆為行動支付。StallPOS 只會作廢本機紀錄並補回庫存，不會自動退回外部款項。")
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmNonCashVoid) {
+                    Text("確定作廢", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = onDismissNonCashVoidConfirm) { Text("取消") } },
         )
     }
 

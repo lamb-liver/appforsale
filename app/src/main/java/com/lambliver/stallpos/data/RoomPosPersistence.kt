@@ -248,24 +248,28 @@ internal class RoomPosPersistence(
 
     override suspend fun changeEventStatus(eventId: String, status: MarketEventStatus) {
         database.withTransaction {
-            val current = v2Dao.event(eventId) ?: error("event not found: $eventId")
-            val from = MarketEventStatus.valueOf(current.status)
-            require((from == MarketEventStatus.PLANNED && status == MarketEventStatus.ACTIVE) ||
-                (from == MarketEventStatus.ACTIVE && status == MarketEventStatus.CLOSED)) {
-                "invalid event transition: $from -> $status"
-            }
-            if (status == MarketEventStatus.ACTIVE) {
-                check(v2Dao.activeEvents().none { it.id != eventId }) { "another event is already active" }
-            }
+            changeEventStatusInternal(eventId, status, System.currentTimeMillis())
+        }
+    }
+
+    override suspend fun closeEventAndReturnInventory(eventId: String) {
+        database.withTransaction {
+            val location = InventoryLocation.event(eventId)
             val now = System.currentTimeMillis()
-            v2Dao.upsertEvent(
-                current.copy(
-                    status = status.name,
-                    actualOpenAtMillis = current.actualOpenAtMillis ?: now.takeIf { status == MarketEventStatus.ACTIVE },
-                    actualCloseAtMillis = now.takeIf { status == MarketEventStatus.CLOSED },
-                    updatedAtMillis = now,
-                ),
-            )
+            v2Dao.inventoryLevels()
+                .filter { it.locationKey == location.key && it.quantity > 0 }
+                .forEach { level ->
+                    moveInventoryInternal(
+                        productId = level.productId,
+                        quantity = level.quantity,
+                        from = location,
+                        to = InventoryLocation.General,
+                        type = InventoryMovementType.RETURN_FROM_EVENT,
+                        relatedTransactionId = null,
+                        now = now,
+                    )
+                }
+            changeEventStatusInternal(eventId, MarketEventStatus.CLOSED, now)
         }
     }
 
@@ -768,6 +772,30 @@ internal class RoomPosPersistence(
                 quantity = quantity,
                 relatedTransactionId = relatedTransactionId,
                 occurredAtMillis = now,
+            ),
+        )
+    }
+
+    private suspend fun changeEventStatusInternal(
+        eventId: String,
+        status: MarketEventStatus,
+        now: Long,
+    ) {
+        val current = v2Dao.event(eventId) ?: error("event not found: $eventId")
+        val from = MarketEventStatus.valueOf(current.status)
+        require((from == MarketEventStatus.PLANNED && status == MarketEventStatus.ACTIVE) ||
+            (from == MarketEventStatus.ACTIVE && status == MarketEventStatus.CLOSED)) {
+            "invalid event transition: $from -> $status"
+        }
+        if (status == MarketEventStatus.ACTIVE) {
+            check(v2Dao.activeEvents().none { it.id != eventId }) { "another event is already active" }
+        }
+        v2Dao.upsertEvent(
+            current.copy(
+                status = status.name,
+                actualOpenAtMillis = current.actualOpenAtMillis ?: now.takeIf { status == MarketEventStatus.ACTIVE },
+                actualCloseAtMillis = now.takeIf { status == MarketEventStatus.CLOSED },
+                updatedAtMillis = now,
             ),
         )
     }

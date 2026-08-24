@@ -135,10 +135,11 @@ fun ProductFormDialog(
     categories:    ImmutableList<Category>,
     onDismiss:     () -> Unit,
     onAddCategory: (String) -> Unit,
-    onConfirm:     (name: String, price: Long, categoryId: String, stock: Long?) -> Unit,
+    onConfirm:     (name: String, price: Long, categoryId: String, stock: Long?, cost: Long?) -> Unit,
 ) {
     var name       by rememberSaveable { mutableStateOf(initial?.name ?: "") }
     var priceText  by rememberSaveable { mutableStateOf(initial?.price?.toString() ?: "") }
+    var costText   by rememberSaveable { mutableStateOf(initial?.cost?.toString() ?: "") }
     var categoryId by rememberSaveable { mutableStateOf(initial?.categoryId ?: "") }
 
     var trackStock by rememberSaveable { mutableStateOf(initial?.stock != null) }
@@ -159,6 +160,8 @@ fun ProductFormDialog(
     }
 
     val priceValue = priceText.toLongOrNull() ?: 0L
+    val costValue = costText.takeIf { it.isNotBlank() }?.toLongOrNull()
+    val costOk = costText.isBlank() || costValue != null
     val stockParsed = stockText.toLongOrNull()
     val stockOk     = !trackStock || (stockParsed != null && stockParsed >= 0L)
 
@@ -172,6 +175,14 @@ fun ProductFormDialog(
                     onValueChange = { name = it },
                     label         = { Text("名稱") },
                     singleLine    = true,
+                )
+                OutlinedTextField(
+                    value = costText,
+                    onValueChange = { costText = it.filter(Char::isDigit) },
+                    label = { Text("成本（選填）") },
+                    supportingText = { Text("未知請留空，不會當作 0") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
                 OutlinedTextField(
                     value           = priceText,
@@ -272,10 +283,10 @@ fun ProductFormDialog(
                             val parsed = stockParsed ?: return@run
                             parsed.coerceAtLeast(0L)
                         }
-                        onConfirm(name.trim(), priceValue, categoryId, st)
+                        onConfirm(name.trim(), priceValue, categoryId, st, costValue)
                     }
                 },
-                enabled = name.isNotBlank() && priceValue > 0 && stockOk,
+                enabled = name.isNotBlank() && priceValue > 0 && stockOk && costOk,
             ) { Text("儲存") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },

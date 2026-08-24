@@ -37,6 +37,8 @@ import kotlin.math.roundToInt
 internal fun DashboardBottomSheet(
     sheetState: SheetState,
     todayLogs: ImmutableList<SaleRecord>,
+    allLogs: ImmutableList<SaleRecord>,
+    reversals: ImmutableList<SaleReversal>,
     products:  ImmutableList<Product>,
     currency:  NumberFormat,
     onDismiss: () -> Unit,
@@ -49,6 +51,8 @@ internal fun DashboardBottomSheet(
         todayLogs.filter { it.paymentMethod == PaymentMethod.DIGITAL }.sumOf { it.total + it.tipAmount }
     }
     val payGrand = cashTotal + digitalTotal
+    val reversedSaleIds = remember(reversals) { reversals.mapTo(hashSetOf()) { it.saleId } }
+    val recent = remember(allLogs) { allLogs.sortedByDescending { it.tsMillis }.take(20) }
 
     val productMap = remember(products) { products.associateBy { it.id } }
     val top3 = remember(todayLogs) {
@@ -146,6 +150,40 @@ internal fun DashboardBottomSheet(
                     fontWeight = FontWeight.Bold,
                     color      = MaterialTheme.colorScheme.onSurface,
                 )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Text(
+                "最近交易",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            if (recent.isEmpty()) {
+                Text("尚無交易紀錄", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                recent.forEach { sale ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                sale.receiptNumber ?: sale.id,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "${sale.dateKey} · ${if (sale.paymentMethod == PaymentMethod.CASH) "現金" else "行動支付"}${if (sale.id in reversedSaleIds) " · 已作廢" else ""}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (sale.id in reversedSaleIds) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(currency.format(sale.total + sale.tipAmount), fontWeight = FontWeight.Bold)
+                    }
+                }
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
