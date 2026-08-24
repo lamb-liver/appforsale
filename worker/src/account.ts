@@ -18,7 +18,7 @@ export function clearUserStatements(db: D1Database, userId: string, deleteUser: 
   const tables = [
     "audit_logs", "processed_operations", "voids", "bundle_component_allocations", "sale_lines", "sales",
     "inventory_movements", "inventory_levels", "events", "bundles", "products", "categories",
-    "device_transfers", "refresh_credentials", "sessions", "devices",
+    "dashboard_sessions", "device_transfers", "refresh_credentials", "sessions", "devices",
   ];
   const statements = tables.map((table) => db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId));
   if (deleteUser) statements.push(db.prepare("DELETE FROM users WHERE id = ?").bind(userId));

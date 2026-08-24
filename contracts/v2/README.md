@@ -92,6 +92,11 @@ groups validate.
 
 Reports are read-only. Revenue, cost completeness, gross profit, transaction
 count, item count, and average order value use effective Sales minus Voids.
+`GET /v2/reports/events` and `GET /v2/reports/events/{eventId}` require the
+HttpOnly dashboard session. Co-purchase counts only two `PRODUCT` lines in the
+same effective Sale and is hidden below five shared Sales. Daily and hourly
+buckets use the Event IANA timezone. Inventory sell-through is sold quantity
+divided by stock supplied to that Event.
 
 ## Fixtures
 
