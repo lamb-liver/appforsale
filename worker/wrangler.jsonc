@@ -28,11 +28,13 @@
     {
       "binding": "POS_DB",
       "database_name": "stallpos-pos",
+      "database_id": "cdf0984f-8dc2-4fef-b198-e20b3295ee9c",
       "migrations_dir": "migrations/pos"
     },
     {
       "binding": "DELETION_DB",
       "database_name": "stallpos-deletion",
+      "database_id": "4eb33fae-1188-41bb-ac38-7af7abba0833",
       "migrations_dir": "migrations/deletion"
     }
   ],
