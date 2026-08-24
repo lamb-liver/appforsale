@@ -153,6 +153,9 @@ internal interface V2RoomDao {
     @Upsert
     suspend fun putCloudState(rows: List<CloudStateEntity>)
 
+    @Query("DELETE FROM cloud_state WHERE key IN (:keys)")
+    suspend fun deleteCloudState(keys: List<String>)
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertOutbox(row: SyncOutboxEntity)
 
@@ -170,6 +173,9 @@ internal interface V2RoomDao {
 
     @Query("SELECT * FROM sync_outbox ORDER BY created_at_millis, operation_id")
     suspend fun outboxRows(): List<SyncOutboxEntity>
+
+    @Query("DELETE FROM sync_outbox")
+    suspend fun deleteAllOutbox()
 
     @Query(
         "SELECT " +

@@ -22,6 +22,12 @@ fun signingValue(environmentName: String, localName: String): String? =
         ?.takeIf { it.isNotBlank() }
         ?: localProperties.getProperty(localName)?.takeIf { it.isNotBlank() }
 
+fun configValue(environmentName: String, localName: String): String =
+    providers.environmentVariable(environmentName).orNull
+        ?: localProperties.getProperty(localName).orEmpty()
+
+fun quotedBuildConfig(value: String): String = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 val releaseStorePath = signingValue("STALLPOS_RELEASE_STORE_FILE", "storeFile")
 val releaseStorePassword = signingValue("STALLPOS_RELEASE_STORE_PASSWORD", "storePassword")
 val releaseKeyAlias = signingValue("STALLPOS_RELEASE_KEY_ALIAS", "keyAlias")
@@ -51,6 +57,8 @@ android {
         targetSdk = 35
         versionCode = 6
         versionName = appVersionName
+        buildConfigField("String", "SYNC_BASE_URL", quotedBuildConfig(configValue("STALLPOS_SYNC_BASE_URL", "syncBaseUrl")))
+        buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", quotedBuildConfig(configValue("STALLPOS_GOOGLE_SERVER_CLIENT_ID", "googleServerClientId")))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -134,6 +142,9 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.sqlite)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
     implementation(libs.sqlcipher.android)
     implementation(libs.kotlinx.collections.immutable)
     ksp(libs.androidx.room.compiler)

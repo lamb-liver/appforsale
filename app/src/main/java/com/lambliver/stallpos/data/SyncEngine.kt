@@ -24,6 +24,9 @@ import org.json.JSONObject
 internal object SyncCloudKeys {
     const val BASE_URL = "sync_base_url"
     const val ACCESS_TOKEN = "sync_access_token"
+    const val REFRESH_TOKEN = "sync_refresh_token"
+    const val USER_ID = "sync_user_id"
+    const val TRANSFER_COMMIT_TOKEN = "sync_transfer_commit_token"
 }
 
 internal data class SyncHttpResponse(val status: Int, val body: String)
@@ -75,6 +78,7 @@ internal enum class SyncRunResult { IDLE, SUCCESS, RETRY, BLOCKED }
 internal class SyncEngine(
     private val database: StallPosV2Database,
     private val transport: SyncTransport = UrlConnectionSyncTransport(),
+    private val refreshAccessToken: suspend () -> String? = { refreshSyncSession(database) },
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
     private val dao = database.v2Dao()
@@ -93,11 +97,29 @@ internal class SyncEngine(
             .put("cloudEpoch", device.cloudEpoch)
             .put("operations", rows.fold(org.json.JSONArray()) { array, row -> array.put(row.toOperationJson()) })
             .toString()
-        val response = try {
+        var response = try {
             transport.post("${baseUrl.trimEnd('/')}/v2/sync/batch", accessToken, body)
         } catch (error: IOException) {
             markTransient(rows, error.message ?: "network error")
             return SyncRunResult.RETRY
+        }
+        if (response.status == 401) {
+            val refreshed = try {
+                refreshAccessToken()
+            } catch (blocked: CloudLifecycleException) {
+                database.withTransaction {
+                    rows.forEach { dao.markOutboxBlocked(it.operationId, blocked.code, blocked.message, nowMillis()) }
+                }
+                return SyncRunResult.BLOCKED
+            }
+            if (refreshed != null) {
+                response = try {
+                    transport.post("${baseUrl.trimEnd('/')}/v2/sync/batch", refreshed, body)
+                } catch (error: IOException) {
+                    markTransient(rows, error.message ?: "network error")
+                    return SyncRunResult.RETRY
+                }
+            }
         }
         if (response.status == 401 || response.status == 408 || response.status == 429 ||
             response.status in 300..399 || response.status >= 500) {
@@ -195,6 +217,8 @@ internal suspend fun configureSyncSession(
     cloudEpoch: Long,
     deviceName: String = android.os.Build.MODEL.take(100).ifBlank { "Android" },
     nowMillis: Long = System.currentTimeMillis(),
+    refreshToken: String? = null,
+    userId: String? = null,
 ) {
     val uri = URI(baseUrl)
     require(uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.rawQuery == null && uri.rawFragment == null)
@@ -203,10 +227,12 @@ internal suspend fun configureSyncSession(
     require(cloudEpoch >= 0)
     database.withTransaction {
         database.v2Dao().putCloudState(
-            listOf(
-                CloudStateEntity(SyncCloudKeys.BASE_URL, baseUrl.trimEnd('/')),
-                CloudStateEntity(SyncCloudKeys.ACCESS_TOKEN, accessToken),
-            ),
+            buildList {
+                add(CloudStateEntity(SyncCloudKeys.BASE_URL, baseUrl.trimEnd('/')))
+                add(CloudStateEntity(SyncCloudKeys.ACCESS_TOKEN, accessToken))
+                refreshToken?.let { add(CloudStateEntity(SyncCloudKeys.REFRESH_TOKEN, it)) }
+                userId?.let { add(CloudStateEntity(SyncCloudKeys.USER_ID, it)) }
+            },
         )
         val previous = database.v2Dao().deviceState()
         database.v2Dao().putDeviceState(

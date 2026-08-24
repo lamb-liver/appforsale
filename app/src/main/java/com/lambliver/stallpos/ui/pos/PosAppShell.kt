@@ -50,6 +50,8 @@ internal fun PosAppShell(
     soundEnabled: Boolean,
     onHapticEnabledChange: (Boolean) -> Unit,
     onSoundEnabledChange: (Boolean) -> Unit,
+    cloudLoginConfigured: Boolean,
+    onGoogleSignIn: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -247,5 +249,7 @@ internal fun PosAppShell(
         onDismissRestoreConfirm = { overlay.pendingRestoreUri = null },
         onConfirmRestore = { uri -> vm.onEvent(PosEvent.ImportBackupJson(DocumentTarget(uri.toString()))) },
         feedback = feedback,
+        cloudLoginConfigured = cloudLoginConfigured,
+        onGoogleSignIn = onGoogleSignIn,
     )
 }
