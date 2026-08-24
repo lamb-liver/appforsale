@@ -132,6 +132,9 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
             put("sales_log_json", encodeSalesRecordsJson(cur.salesLog))
             put("reversal_log_json", encodeSaleReversalsJson(cur.reversalLog))
             put("last_checkout_json", cur.lastCheckout?.let { encodeLastCheckoutJson(it) } ?: "")
+            put("events_json", encodeMarketEvents(cur.events))
+            put("inventory_levels_json", encodeInventoryLevels(cur.inventoryLevels))
+            put("inventory_movements_json", encodeInventoryMovements(cur.inventoryMovements))
             put("total_sales", effectiveSales.sumOf { it.total + it.tipAmount })
             put("tx_count", effectiveSales.size.toLong())
         }
@@ -162,6 +165,9 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
             ),
             totalSales = effectiveSales.sumOf { it.total + it.tipAmount },
             txCount = effectiveSales.size.toLong(),
+            events = decodeMarketEvents(payload.optString("events_json", "[]")),
+            inventoryLevels = decodeInventoryLevels(payload.optString("inventory_levels_json", "[]")),
+            inventoryMovements = decodeInventoryMovements(payload.optString("inventory_movements_json", "[]")),
         )
     }
 }

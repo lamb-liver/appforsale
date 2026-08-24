@@ -24,12 +24,12 @@ import kotlin.system.measureTimeMillis
 class PosStoreInstrumentedTest {
 
     private val appCtx = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
-    private lateinit var database: StallPosDatabase
+    private lateinit var database: StallPosV2Database
     private lateinit var store: RoomPosPersistence
 
     @Before
     fun setup() = runBlocking {
-        database = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
+        database = Room.inMemoryDatabaseBuilder<StallPosV2Database>(appCtx).build()
         database.posDao().putMeta(AppMetaEntity(LEGACY_IMPORT_VERSION_KEY, "3"))
         store = RoomPosPersistence(appCtx, database)
     }
@@ -141,10 +141,141 @@ class PosStoreInstrumentedTest {
     }
 
     @Test
+    fun activeEventSaleAndVoid_useOnlyV2LevelsMovementsAndSnapshots() = runBlocking {
+        val product = Product("event-product", "徽章", 100L, stock = 10L, cost = 30L)
+        store.applyCatalog(CatalogPersistPlan(products = listOf(product)))
+        val event = MarketEvent.create(
+            name = "CWT",
+            type = MarketEventType.CONVENTION,
+            startAtMillis = 1_000,
+            endAtMillis = 2_000,
+            timezone = "Asia/Taipei",
+        )
+        store.saveEvent(event)
+        store.moveInventory(
+            product.id,
+            8,
+            InventoryLocation.General,
+            InventoryLocation.event(event.id),
+            InventoryMovementType.ALLOCATE_TO_EVENT,
+        )
+        store.changeEventStatus(event.id, MarketEventStatus.ACTIVE)
+        store.commitCheckout(
+            CheckoutWriteRequest(
+                productCart = mapOf(product.id to 3),
+                bundleCart = emptyMap(),
+                subtotal = 250,
+                discount = 0,
+                total = 250,
+                dateKey = "2099-01-01",
+                paymentMethod = PaymentMethod.CASH,
+                checkoutLines = listOf(SaleCheckoutLine.Product(product.id, 3, 100, 300, product.name)),
+                stockDeductions = mapOf(product.id to 3),
+                tipAmount = 20,
+            ),
+        )
+
+        val sold = store.snapshot.first()
+        assertEquals(5L, sold.products.single().stock)
+        assertEquals(30L, sold.products.single().cost)
+        assertEquals(270L, sold.totalSales)
+        assertEquals(null, database.posDao().products().single().stock)
+        val levels = sold.inventoryLevels.associateBy { it.location.key }
+        assertEquals(2L, levels.getValue(InventoryLocation.GENERAL_KEY).quantity)
+        assertEquals(5L, levels.getValue(InventoryLocation.event(event.id).key).quantity)
+        val sale = sold.salesLog.single()
+        val meta = database.v2Dao().saleMeta(sale.id)!!
+        assertEquals(event.id, meta.eventId)
+        assertEquals(50L, meta.discountAmount)
+        assertEquals(0L, meta.netAdjustment)
+        assertTrue(meta.receiptNumber.startsWith("${event.code}-A-"))
+        val snapshot = database.v2Dao().saleLineSnapshots(sale.id).single()
+        assertEquals(30L, snapshot.unitCostSnapshot)
+        assertEquals(300L, snapshot.originalAmount)
+        assertEquals(50L, snapshot.allocatedDiscount)
+        assertEquals(250L, snapshot.finalAmount)
+        assertEquals(
+            listOf("ADJUSTMENT", "ALLOCATE_TO_EVENT", "SALE"),
+            database.v2Dao().inventoryMovements().map { it.movementType },
+        )
+        assertTrue(runCatching { store.saveEvent(event.copy(code = "EDIT-01")) }.isFailure)
+        assertTrue(runCatching { store.saveEvent(event.copy(timezone = "UTC")) }.isFailure)
+
+        store.undoLastCheckout()
+        store.undoLastCheckout()
+        val voided = store.snapshot.first()
+        assertEquals(8L, voided.products.single().stock)
+        assertEquals(0L, voided.totalSales)
+        assertEquals(1, voided.reversalLog.size)
+        assertEquals(1, database.v2Dao().inventoryMovements().count { it.movementType == "VOID" })
+        assertEquals(null, database.posDao().products().single().stock)
+    }
+
+    @Test
+    fun bundleSale_allocatesRevenueByLargestRemainder_andOnlyOneEventCanBeActive() = runBlocking {
+        val first = Product("p1", "A", 60, stock = 5, cost = 20)
+        val second = Product("p2", "B", 40, stock = 5, cost = null)
+        val bundle = Bundle("bundle", "AB", 99, components = listOf(BundleComponent("p1", 1), BundleComponent("p2", 1)))
+        store.applyCatalog(CatalogPersistPlan(products = listOf(first, second), bundles = listOf(bundle)))
+        val eventOne = MarketEvent.create("One", MarketEventType.MARKET, 1, 2, "Asia/Taipei")
+        val eventTwo = MarketEvent.create("Two", MarketEventType.MARKET, 3, 4, "Asia/Taipei")
+        store.saveEvent(eventOne)
+        store.saveEvent(eventTwo)
+        store.changeEventStatus(eventOne.id, MarketEventStatus.ACTIVE)
+        assertTrue(runCatching { store.changeEventStatus(eventTwo.id, MarketEventStatus.ACTIVE) }.isFailure)
+        store.moveInventory("p1", 2, InventoryLocation.General, InventoryLocation.event(eventOne.id), InventoryMovementType.ALLOCATE_TO_EVENT)
+        store.moveInventory("p2", 2, InventoryLocation.General, InventoryLocation.event(eventOne.id), InventoryMovementType.ALLOCATE_TO_EVENT)
+        store.commitCheckout(
+            CheckoutWriteRequest(
+                productCart = emptyMap(),
+                bundleCart = mapOf(bundle.id to 1),
+                subtotal = 99,
+                discount = 0,
+                total = 99,
+                dateKey = "2099-01-01",
+                paymentMethod = PaymentMethod.CASH,
+                checkoutLines = listOf(SaleCheckoutLine.Bundle(bundle.id, 1, 99, 99, bundle.name)),
+                stockDeductions = mapOf("p1" to 1, "p2" to 1),
+                tipAmount = 0,
+            ),
+        )
+        val saleId = store.salesLogFlow.first().single().id
+        val allocations = database.v2Dao().bundleAllocations(saleId)
+        assertEquals(listOf(59L, 40L), allocations.map { it.allocatedRevenue })
+        assertEquals(listOf(20L, null), allocations.map { it.unitCostSnapshot })
+        assertEquals(99L, allocations.sumOf { it.allocatedRevenue })
+    }
+
+    @Test
+    fun v2JsonBackup_roundTripsEventsLevelsMovementsCostsSnapshotsAndVoid() = runBlocking {
+        val product = Product("backup-v2", "Backup", 80, stock = 6, cost = 25)
+        store.applyCatalog(CatalogPersistPlan(products = listOf(product)))
+        val event = MarketEvent.create("Backup Event", MarketEventType.POPUP, 1, 2, "Asia/Taipei")
+        store.saveEvent(event)
+        store.moveInventory(
+            product.id,
+            4,
+            InventoryLocation.General,
+            InventoryLocation.event(event.id),
+            InventoryMovementType.ALLOCATE_TO_EVENT,
+        )
+        store.changeEventStatus(event.id, MarketEventStatus.ACTIVE)
+        store.commitCheckout(checkout(product.id, 1, 80))
+        store.undoLastCheckout()
+        val before = store.snapshot.first()
+
+        val backup = store.exportFullBackupJson()
+        assertEquals(PosStore.BACKUP_SCHEMA_VERSION, JSONObject(backup).getInt("schemaVersion"))
+        store.restoreFullBackupJson(backup).getOrThrow()
+
+        assertEquals(before, store.snapshot.first())
+    }
+
+    @Test
     fun legacyDataStore_importsOnce_thenMarkerPreventsReread() = runBlocking {
         val legacy = PosStore(appCtx)
         val original = legacy.exportFullBackupJson()
-        val importDatabase = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
+        val importDatabase = Room.inMemoryDatabaseBuilder<StallPosV2Database>(appCtx).build()
         try {
             legacy.restoreFullBackupJson(backup(emptyList(), emptyList(), 0)).getOrThrow()
             val product = Product("legacy", "Legacy 名稱", 80L, stock = 4L)
@@ -155,7 +286,12 @@ class PosStoreInstrumentedTest {
 
             val imported = RoomPosPersistence(appCtx, importDatabase).snapshot.first()
             assertEquals(expected.products, imported.products)
-            assertEquals(expected.salesLog, imported.salesLog)
+            assertEquals(
+                expected.salesLog,
+                imported.salesLog.map { it.copy(receiptNumber = null, lineFinancialSnapshots = emptyList()) },
+            )
+            assertEquals("LEGACY-A-0001", imported.salesLog.single().receiptNumber)
+            assertEquals(80L, imported.salesLog.single().lineFinancialSnapshots.single().finalAmount)
             assertEquals(expected.lastCheckout, imported.lastCheckout)
             assertEquals(80L, imported.totalSales)
 
@@ -331,6 +467,9 @@ class PosStoreInstrumentedTest {
             .put("sales_log_json", encodeSalesRecordsJson(sales))
             .put("reversal_log_json", encodeSaleReversalsJson(reversals))
             .put("last_checkout_json", "")
+            .put("events_json", "[]")
+            .put("inventory_levels_json", "[]")
+            .put("inventory_movements_json", "[]")
             .put("total_sales", activeCount.toLong())
             .put("tx_count", activeCount.toLong())
         return JSONObject()

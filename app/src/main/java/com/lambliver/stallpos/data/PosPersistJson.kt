@@ -141,7 +141,18 @@ internal fun encodeSalesRecordsJson(log: List<SaleRecord>): String =
                     .put("paymentMethod", r.paymentMethod.name)
                     .put("tipAmount", r.tipAmount)
                     .put("lines", encodeCheckoutLinesPersist(r.checkoutLines))
-                    .put("stockDeductions", encodeLongQtyMapPersist(r.stockDeductions)),
+                    .put("stockDeductions", encodeLongQtyMapPersist(r.stockDeductions))
+                    .put("discountAmount", r.discountAmount)
+                    .put("netAdjustment", r.netAdjustment)
+                    .put("lineFinancialSnapshots", encodeLineFinancialSnapshots(r.lineFinancialSnapshots))
+                    .put("bundleComponentAllocations", encodeBundleRevenueAllocations(r.bundleComponentAllocations))
+                    .apply {
+                        r.eventId?.let { put("eventId", it) }
+                        r.deviceId?.let { put("deviceId", it) }
+                        r.receiptNumber?.let { put("receiptNumber", it) }
+                        r.discountType?.let { put("discountType", it) }
+                        r.discountValue?.let { put("discountValue", it) }
+                    },
             )
         }
     }.toString()
@@ -188,6 +199,15 @@ internal fun decodeSalesRecordsJsonResult(json: String): Result<List<SaleRecord>
             tipAmount = o.optLong("tipAmount", 0L).coerceAtLeast(0L),
             checkoutLines = decodeCheckoutLinesPersist(o.optJSONArray("lines")),
             stockDeductions = decodeLongQtyMapPersist(o.optJSONObject("stockDeductions")),
+            eventId = o.optString("eventId", "").takeIf { it.isNotBlank() },
+            deviceId = o.optString("deviceId", "").takeIf { it.isNotBlank() },
+            receiptNumber = o.optString("receiptNumber", "").takeIf { it.isNotBlank() },
+            discountType = o.optString("discountType", "").takeIf { it.isNotBlank() },
+            discountValue = if (o.has("discountValue") && !o.isNull("discountValue")) o.getLong("discountValue") else null,
+            discountAmount = o.optLong("discountAmount", o.getLong("discount")),
+            netAdjustment = o.optLong("netAdjustment", 0),
+            lineFinancialSnapshots = decodeLineFinancialSnapshots(o.optJSONArray("lineFinancialSnapshots")),
+            bundleComponentAllocations = decodeBundleRevenueAllocations(o.optJSONArray("bundleComponentAllocations")),
         )
         if (record.id.isNotEmpty()) record else record.copy(id = legacySaleId(i, record))
     }
@@ -204,7 +224,12 @@ internal fun encodeSaleReversalsJson(log: List<SaleReversal>): String =
                     .put("id", reversal.id)
                     .put("saleId", reversal.saleId)
                     .put("ts", reversal.tsMillis)
-                    .put("reason", reversal.reason.name),
+                    .put("reason", reversal.reason.name)
+                    .put("paymentMethod", reversal.paymentMethod.name)
+                    .apply {
+                        reversal.eventId?.let { put("eventId", it) }
+                        reversal.deviceId?.let { put("deviceId", it) }
+                    },
             )
         }
     }.toString()
@@ -219,9 +244,72 @@ internal fun decodeSaleReversalsJson(json: String): List<SaleReversal> = runCatc
             saleId = o.getString("saleId"),
             tsMillis = o.getLong("ts"),
             reason = ReversalReason.valueOf(o.getString("reason")),
+            eventId = o.optString("eventId", "").takeIf { it.isNotBlank() },
+            deviceId = o.optString("deviceId", "").takeIf { it.isNotBlank() },
+            paymentMethod = decodePaymentMethodPersist(o.optString("paymentMethod", "CASH")),
         )
     }
 }.getOrElse { emptyList() }
+
+private fun encodeLineFinancialSnapshots(rows: List<SaleLineFinancialSnapshot>) = JSONArray().apply {
+    rows.forEach { row ->
+        put(
+            JSONObject()
+                .put("lineIndex", row.lineIndex)
+                .put("originalAmount", row.originalAmount)
+                .put("allocatedDiscount", row.allocatedDiscount)
+                .put("allocatedAdjustment", row.allocatedAdjustment)
+                .put("finalAmount", row.finalAmount)
+                .apply { row.unitCostSnapshot?.let { put("unitCostSnapshot", it) } },
+        )
+    }
+}
+
+private fun decodeLineFinancialSnapshots(rows: JSONArray?): List<SaleLineFinancialSnapshot> =
+    if (rows == null) emptyList() else List(rows.length()) { index ->
+        val row = rows.getJSONObject(index)
+        SaleLineFinancialSnapshot(
+            lineIndex = row.getInt("lineIndex"),
+            unitCostSnapshot = if (row.has("unitCostSnapshot") && !row.isNull("unitCostSnapshot")) {
+                row.getLong("unitCostSnapshot")
+            } else null,
+            originalAmount = row.getLong("originalAmount"),
+            allocatedDiscount = row.getLong("allocatedDiscount"),
+            allocatedAdjustment = row.getLong("allocatedAdjustment"),
+            finalAmount = row.getLong("finalAmount"),
+        )
+    }
+
+private fun encodeBundleRevenueAllocations(rows: List<BundleRevenueAllocation>) = JSONArray().apply {
+    rows.forEach { row ->
+        put(
+            JSONObject()
+                .put("lineIndex", row.lineIndex)
+                .put("allocationIndex", row.allocationIndex)
+                .put("productId", row.productId)
+                .put("productNameSnapshot", row.productNameSnapshot)
+                .put("quantity", row.quantity)
+                .put("allocatedRevenue", row.allocatedRevenue)
+                .apply { row.unitCostSnapshot?.let { put("unitCostSnapshot", it) } },
+        )
+    }
+}
+
+private fun decodeBundleRevenueAllocations(rows: JSONArray?): List<BundleRevenueAllocation> =
+    if (rows == null) emptyList() else List(rows.length()) { index ->
+        val row = rows.getJSONObject(index)
+        BundleRevenueAllocation(
+            lineIndex = row.getInt("lineIndex"),
+            allocationIndex = row.getInt("allocationIndex"),
+            productId = row.getString("productId"),
+            productNameSnapshot = row.getString("productNameSnapshot"),
+            unitCostSnapshot = if (row.has("unitCostSnapshot") && !row.isNull("unitCostSnapshot")) {
+                row.getLong("unitCostSnapshot")
+            } else null,
+            quantity = row.getLong("quantity"),
+            allocatedRevenue = row.getLong("allocatedRevenue"),
+        )
+    }
 
 /** Legacy LastCheckout 只在唯一匹配時補 saleId；不猜測 destructive Undo 目標。 */
 internal fun linkLastCheckoutToSales(

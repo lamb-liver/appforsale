@@ -15,6 +15,16 @@ internal enum class UpgradeStage {
 }
 
 internal object DatabaseEncryptionUpgrader {
+    fun recoverInterrupted(source: File) {
+        val temp = File(source.parentFile, "${source.name}.v2.tmp")
+        val backup = File(source.parentFile, "${source.name}.v1.backup")
+        if (backup.exists()) {
+            deleteFileAndSidecars(source)
+            check(backup.renameTo(source)) { "Interrupted migration backup could not be restored" }
+        }
+        deleteFileAndSidecars(temp)
+    }
+
     fun upgrade(
         context: Context,
         source: File,

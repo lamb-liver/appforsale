@@ -1,6 +1,11 @@
 package com.lambliver.stallpos.data
 
 import org.json.JSONObject
+import com.lambliver.stallpos.domain.InventoryLevel
+import com.lambliver.stallpos.domain.InventoryLocation
+import com.lambliver.stallpos.domain.InventoryMovement
+import com.lambliver.stallpos.domain.InventoryMovementType
+import java.util.UUID
 
 /**
  * 備份 payload 版本遷移（還原路徑由 [parseValidatedBackupPayload] 呼叫）。
@@ -10,13 +15,14 @@ import org.json.JSONObject
  * | 欄位 | 層級 | 職責 |
  * |------|------|------|
  * | **`schemaVersion`** | **Envelope**（備份檔根物件，與 `format` 並列） | 控制 [parseBackupEnvelope] 能否接受檔案、以及要跑哪些 **步驟遷移**（`migrateV1ToV2` …）。由 [PosStore.BACKUP_SCHEMA_VERSION] 定義 App 支援上限。 |
- * | **`payloadSchema`** | **Payload**（`payload` 物件內） | 標記業務資料束形狀；供 payload 內欄位遷移使用。現行 v4 與 envelope 4 對齊。 |
+ * | **`payloadSchema`** | **Payload**（`payload` 物件內） | 標記業務資料束形狀；供 payload 內欄位遷移使用。現行 v5 與 envelope 5 對齊。 |
  *
  * 匯出時：外層 `schemaVersion` = [PosStore.BACKUP_SCHEMA_VERSION]，payload 內寫入 `payloadSchema`（同值）。
  *
  * ## 冪等性
  *
- * v1→v2 只補版本標記；v2→v3 補 identity 與 Reversal log；v3→v4 補可證明的名稱快照。
+ * v1→v2 只補版本標記；v2→v3 補 identity 與 Reversal log；v3→v4 補可證明的名稱快照；
+ * v4→v5 把舊 stock 建成 GENERAL level 與 baseline movement。
  * Envelope `schemaVersion` 已為目前版本時，[migratePayloadToCurrent] 不進入遷移迴圈（identity）。
  *
  * 新增版本：遞增 [PosStore.BACKUP_SCHEMA_VERSION]、實作 `migrateV{n}ToV{n+1}`、補 [BackupMigrationTest] fixture。
@@ -31,6 +37,7 @@ internal object BackupMigration {
                 1 -> migrateV1ToV2(current)
                 2 -> migrateV2ToV3(current)
                 3 -> migrateV3ToV4(current)
+                4 -> migrateV4ToV5(current)
                 else -> throw IllegalArgumentException(
                     "備份版本 $schema 無法遷移至 ${PosStore.BACKUP_SCHEMA_VERSION}",
                 )
@@ -76,4 +83,30 @@ internal object BackupMigration {
             ).onSuccess { put("sales_log_json", it) }
             put("payloadSchema", 4)
         }
+
+    /** v4→v5：沒有 Event 資訊可猜，僅將現有 stock 證明為 GENERAL baseline。 */
+    private fun migrateV4ToV5(payload: JSONObject): JSONObject = payload.apply {
+        val products = decodeProducts(optString("products_json", "[]"))
+        val levels = products.mapNotNull { product ->
+            product.stock?.let { InventoryLevel(product.id, InventoryLocation.General, it, 0) }
+        }
+        val movements = products.mapNotNull { product ->
+            val stock = product.stock?.takeIf { it > 0 } ?: return@mapNotNull null
+            InventoryMovement(
+                id = UUID.nameUUIDFromBytes("stallpos:backup-v5:${product.id}".toByteArray()).toString(),
+                productId = product.id,
+                eventId = null,
+                from = null,
+                to = InventoryLocation.General,
+                type = InventoryMovementType.ADJUSTMENT,
+                quantity = stock,
+                relatedTransactionId = null,
+                occurredAtMillis = 0,
+            )
+        }
+        put("events_json", "[]")
+        put("inventory_levels_json", encodeInventoryLevels(levels))
+        put("inventory_movements_json", encodeInventoryMovements(movements))
+        put("payloadSchema", 5)
+    }
 }
