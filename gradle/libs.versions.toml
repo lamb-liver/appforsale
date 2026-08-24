@@ -16,8 +16,9 @@ robolectric = "4.14.1"
 coroutines = "1.10.2"
 androidxArchCoreTesting = "2.2.0"
 androidxTestCore = "1.6.1"
-room3 = "3.0.1"
-sqlite = "2.7.0"
+room = "2.8.4"
+sqlite = "2.6.2"
+sqlcipher = "4.17.0"
 ksp = "2.3.10"
 
 [libraries]
@@ -47,12 +48,13 @@ androidx-arch-core-testing = { group = "androidx.arch.core", name = "core-testin
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 androidx-test-core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 androidx-junit-ktx = { group = "androidx.test.ext", name = "junit-ktx", version.ref = "junitKtx" }
-androidx-room3-runtime = { group = "androidx.room3", name = "room3-runtime", version.ref = "room3" }
-androidx-room3-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "room3" }
-androidx-sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version.ref = "sqlite" }
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-sqlite = { group = "androidx.sqlite", name = "sqlite", version.ref = "sqlite" }
+sqlcipher-android = { group = "net.zetetic", name = "sqlcipher-android", version.ref = "sqlcipher" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-room3 = { id = "androidx.room3", version.ref = "room3" }
+room = { id = "androidx.room", version.ref = "room" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

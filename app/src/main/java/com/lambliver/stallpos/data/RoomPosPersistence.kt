@@ -2,8 +2,7 @@ package com.lambliver.stallpos.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
-import androidx.room3.withReadTransaction
-import androidx.room3.withWriteTransaction
+import androidx.room.withTransaction
 import com.lambliver.stallpos.domain.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -47,7 +46,7 @@ internal class RoomPosPersistence(
 
     override suspend fun applyCatalog(plan: CatalogPersistPlan) {
         ensureLegacyImported()
-        database.withWriteTransaction {
+        database.withTransaction {
             if (plan.bundles != null) dao.deleteAllBundleComponents()
             plan.products?.let { replaceProducts(it) }
             plan.bundles?.let { replaceBundles(it) }
@@ -59,7 +58,7 @@ internal class RoomPosPersistence(
 
     override suspend fun saveCart(cart: PosCart) {
         ensureLegacyImported()
-        database.withWriteTransaction { replaceCart(cart) }
+        database.withTransaction { replaceCart(cart) }
     }
 
     override suspend fun clearCart() = saveCart(PosCart())
@@ -70,7 +69,7 @@ internal class RoomPosPersistence(
             "checkout cart quantity must be non-negative"
         }
         ensureLegacyImported()
-        database.withWriteTransaction {
+        database.withTransaction {
             val products = dao.products().map { it.toDomain() }
             val bundles = readBundles()
             val deductions = request.stockDeductions.takeIf { it.isNotEmpty() }
@@ -126,10 +125,10 @@ internal class RoomPosPersistence(
 
     override suspend fun undoLastCheckout() {
         ensureLegacyImported()
-        database.withWriteTransaction {
-            val last = dao.lastCheckout() ?: return@withWriteTransaction
-            val saleEntity = dao.sale(last.saleId) ?: return@withWriteTransaction
-            if (dao.reversalCountForSale(last.saleId) != 0) return@withWriteTransaction
+        database.withTransaction {
+            val last = dao.lastCheckout() ?: return@withTransaction
+            val saleEntity = dao.sale(last.saleId) ?: return@withTransaction
+            if (dao.reversalCountForSale(last.saleId) != 0) return@withTransaction
             val sale = saleEntity.toDomain(
                 dao.saleLines(last.saleId),
                 dao.stockDeductions(last.saleId),
@@ -181,7 +180,7 @@ internal class RoomPosPersistence(
         ensureLegacyImported()
         val payload = parseValidatedBackupPayload(jsonText)
         val restored = payload.toSnapshot()
-        database.withWriteTransaction { replaceBusinessData(restored) }
+        database.withTransaction { replaceBusinessData(restored) }
     }
 
     private suspend fun ensureLegacyImported() {
@@ -192,7 +191,7 @@ internal class RoomPosPersistence(
         legacyImportMutex.withLock {
             if (dao.metaValue(LEGACY_IMPORT_VERSION_KEY) != LEGACY_IMPORT_VERSION) {
                 val legacy = readLegacySnapshot()
-                database.withWriteTransaction {
+                database.withTransaction {
                     if (dao.metaValue(LEGACY_IMPORT_VERSION_KEY) != LEGACY_IMPORT_VERSION) {
                         replaceBusinessData(legacy)
                         dao.putMeta(AppMetaEntity(LEGACY_IMPORT_VERSION_KEY, LEGACY_IMPORT_VERSION))
@@ -270,7 +269,7 @@ internal class RoomPosPersistence(
         )
     }
 
-    private suspend fun readSnapshot(): PosPersistSnapshot = database.withReadTransaction {
+    private suspend fun readSnapshot(): PosPersistSnapshot = database.withTransaction {
         val products = dao.products().map { it.toDomain() }
         val bundles = readBundles()
         val sales = readSales()

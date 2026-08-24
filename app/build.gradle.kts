@@ -3,7 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.room3)
+    alias(libs.plugins.room)
     alias(libs.plugins.ksp)
 }
 
@@ -37,7 +37,7 @@ composeCompiler {
     reportsDestination.set(layout.buildDirectory.dir("compose_reports"))
 }
 
-room3 {
+room {
     schemaDirectory("$projectDir/schemas")
 }
 
@@ -131,10 +131,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.androidx.room3.runtime)
-    implementation(libs.androidx.sqlite.bundled)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.sqlite)
+    implementation(libs.sqlcipher.android)
     implementation(libs.kotlinx.collections.immutable)
-    ksp(libs.androidx.room3.compiler)
+    ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
