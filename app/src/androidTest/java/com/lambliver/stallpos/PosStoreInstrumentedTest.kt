@@ -1,9 +1,7 @@
 package com.lambliver.stallpos
 
 import android.util.Log
-import androidx.room3.Room
-import androidx.room3.useWriterConnection
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lambliver.stallpos.data.*
@@ -31,9 +29,7 @@ class PosStoreInstrumentedTest {
 
     @Before
     fun setup() = runBlocking {
-        database = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx)
-            .setDriver(BundledSQLiteDriver())
-            .build()
+        database = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
         database.posDao().putMeta(AppMetaEntity(LEGACY_IMPORT_VERSION_KEY, "3"))
         store = RoomPosPersistence(appCtx, database)
     }
@@ -102,18 +98,14 @@ class PosStoreInstrumentedTest {
         store.applyCatalog(CatalogPersistPlan(products = listOf(Product(productId, "A", 100L, stock = 2L))))
         store.saveCart(PosCart(mapOf(productId to 1)))
         val before = store.snapshot.first()
-        database.useWriterConnection {
-            it.usePrepared(
-                "CREATE TRIGGER fail_sale_line BEFORE INSERT ON sale_lines " +
-                    "BEGIN SELECT RAISE(ABORT, 'forced test failure'); END",
-            ) { statement -> statement.step() }
-        }
+        database.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER fail_sale_line BEFORE INSERT ON sale_lines " +
+                "BEGIN SELECT RAISE(ABORT, 'forced test failure'); END",
+        )
         try {
             assertTrue(runCatching { store.commitCheckout(checkout(productId, 1, 100L)) }.isFailure)
         } finally {
-            database.useWriterConnection {
-                it.usePrepared("DROP TRIGGER fail_sale_line") { statement -> statement.step() }
-            }
+            database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_sale_line")
         }
         assertEquals(before, store.snapshot.first())
     }
@@ -152,9 +144,7 @@ class PosStoreInstrumentedTest {
     fun legacyDataStore_importsOnce_thenMarkerPreventsReread() = runBlocking {
         val legacy = PosStore(appCtx)
         val original = legacy.exportFullBackupJson()
-        val importDatabase = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx)
-            .setDriver(BundledSQLiteDriver())
-            .build()
+        val importDatabase = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
         try {
             legacy.restoreFullBackupJson(backup(emptyList(), emptyList(), 0)).getOrThrow()
             val product = Product("legacy", "Legacy 名稱", 80L, stock = 4L)
@@ -193,20 +183,16 @@ class PosStoreInstrumentedTest {
             total = 99L,
             cartSnapshot = emptyMap(),
         )
-        database.useWriterConnection {
-            it.usePrepared(
-                "CREATE TRIGGER fail_restore BEFORE INSERT ON sales " +
-                    "BEGIN SELECT RAISE(ABORT, 'forced restore failure'); END",
-            ) { statement -> statement.step() }
-        }
+        database.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER fail_restore BEFORE INSERT ON sales " +
+                "BEGIN SELECT RAISE(ABORT, 'forced restore failure'); END",
+        )
         try {
             assertTrue(runCatching {
                 store.restoreFullBackupJson(backup(listOf(replacementSale), emptyList(), 1)).getOrThrow()
             }.isFailure)
         } finally {
-            database.useWriterConnection {
-                it.usePrepared("DROP TRIGGER fail_restore") { statement -> statement.step() }
-            }
+            database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_restore")
         }
         assertEquals(before, store.snapshot.first())
     }

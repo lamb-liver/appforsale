@@ -1,8 +1,7 @@
 package com.lambliver.stallpos
 
 import androidx.datastore.preferences.core.edit
-import androidx.room3.Room
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lambliver.stallpos.data.*
@@ -27,9 +26,7 @@ class LegacyRetirementInstrumentedTest {
     @Before
     fun setup() = runBlocking {
         resetLegacyDataStore()
-        database = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx)
-            .setDriver(BundledSQLiteDriver())
-            .build()
+        database = Room.inMemoryDatabaseBuilder<StallPosDatabase>(appCtx).build()
     }
 
     @After
