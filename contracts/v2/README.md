@@ -68,7 +68,7 @@ remain local `PENDING` and are not converted to permanent blocked data.
   location. Code and timezone become immutable after the first sale.
 - Inventory movement: positive quantity with explicit from/to location; exactly
   one side is absent for stock entering or leaving the tracked system.
-- Sale: immutable header with nullable event for GENERAL sales, customer-facing lines, component revenue/cost
+- Sale: immutable header with nullable event for GENERAL sales, customer-facing lines with nullable product cost snapshots, component revenue/cost
   allocations, and sale inventory movements in one operation.
 - A custom-amount-only Sale may have no item lines; its revenue is represented by `netAdjustment`.
 - Void: immutable reference to a sale plus inventory restoration movements; its event matches the Sale and may be `null`.

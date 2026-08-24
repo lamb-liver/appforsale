@@ -26,6 +26,7 @@
           "displayName": "徽章兩入組",
           "quantity": 1,
           "unitPrice": 100,
+          "unitCostSnapshot": null,
           "originalAmount": 100,
           "allocatedDiscount": 10,
           "allocatedAdjustment": 0,
