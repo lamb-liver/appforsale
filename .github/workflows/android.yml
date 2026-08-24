@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to retry
-        required: true
+        description: Existing release tag to retry; leave empty for a gate-only run
+        required: false
+        default: ''
         type: string
   pull_request:
   push:
