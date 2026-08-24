@@ -50,8 +50,11 @@ function validatePayload(operation: SyncOperation): string | null {
     if (lines.some((line) => line.finalAmount !== (line.originalAmount as number) - (line.allocatedDiscount as number) + (line.allocatedAdjustment as number))) {
       return "sale line amounts do not reconcile.";
     }
-    if (lines.reduce((sum, line) => sum + (line.finalAmount as number), 0) !== finalTotal) {
+    if (lines.length > 0 && lines.reduce((sum, line) => sum + (line.finalAmount as number), 0) !== finalTotal) {
       return "sale lines do not sum to finalTotal.";
+    }
+    if (lines.length === 0 && (subtotal !== 0 || discount !== 0)) {
+      return "custom-amount-only sale has invalid item amounts.";
     }
     for (const movement of payload.inventoryMovements as JsonObject[]) {
       const error = validateMovement(movement);

@@ -74,6 +74,44 @@ describe("StallPOS v2 sync API", () => {
     expect(result.results[0]).toMatchObject({ status: "BLOCKED", code: "SERVER_CONFLICT" });
   });
 
+  it("accepts GENERAL sale and void operations without an event", async () => {
+    const uncategorizedMaster = structuredClone(masterBatch) as any;
+    uncategorizedMaster.operations.find((row: any) => row.entityType === "PRODUCT").payload.categoryId = null;
+    uncategorizedMaster.operations.find((row: any) => row.entityType === "BUNDLE").payload.categoryId = null;
+    await sync(uncategorizedMaster);
+    const generalSale = structuredClone(saleBatch) as any;
+    generalSale.requestId = "10000000-0000-4000-8000-000000000020";
+    generalSale.operations[0]!.operationId = "30000000-0000-4000-8000-000000000020";
+    generalSale.operations[0]!.entityId = "90000000-0000-4000-8000-000000000020";
+    generalSale.operations[0]!.payload.id = generalSale.operations[0]!.entityId;
+    generalSale.operations[0]!.payload.eventId = null;
+    generalSale.operations[0]!.payload.receiptNumber = "GENERAL-A-0001";
+    generalSale.operations[0]!.payload.subtotal = 0;
+    generalSale.operations[0]!.payload.discountType = null;
+    generalSale.operations[0]!.payload.discountValue = null;
+    generalSale.operations[0]!.payload.discountAmount = 0;
+    generalSale.operations[0]!.payload.netAdjustment = 90;
+    generalSale.operations[0]!.payload.lines = [];
+    generalSale.operations[0]!.payload.componentAllocations = [];
+    generalSale.operations[0]!.payload.inventoryMovements = [];
+    expect(await sync(generalSale)).toMatchObject({ results: [{ status: "ACK" }] });
+
+    const generalVoid = structuredClone(voidBatch) as any;
+    generalVoid.requestId = "10000000-0000-4000-8000-000000000021";
+    generalVoid.operations[0]!.operationId = "30000000-0000-4000-8000-000000000021";
+    generalVoid.operations[0]!.entityId = "91000000-0000-4000-8000-000000000020";
+    generalVoid.operations[0]!.payload.id = generalVoid.operations[0]!.entityId;
+    generalVoid.operations[0]!.payload.saleId = generalSale.operations[0]!.entityId;
+    generalVoid.operations[0]!.payload.eventId = null;
+    generalVoid.operations[0]!.payload.inventoryMovements = [];
+    expect(await sync(generalVoid)).toMatchObject({ results: [{ status: "ACK" }] });
+
+    const general = await env.POS_DB.prepare(
+      "SELECT event_id FROM sales WHERE user_id = ? AND id = ?",
+    ).bind(userId, generalSale.operations[0]!.entityId).first<{ event_id: string | null }>();
+    expect(general?.event_id).toBeNull();
+  });
+
   it("isolates bootstrap data by authenticated user", async () => {
     await sync(masterBatch);
     const otherUser = "11000000-0000-4000-8000-000000000002";
