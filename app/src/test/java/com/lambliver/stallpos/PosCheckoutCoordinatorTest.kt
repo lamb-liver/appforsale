@@ -42,7 +42,7 @@ class PosCheckoutCoordinatorTest {
             bundles = emptyList(),
             cart = PosCart(products = mapOf("p1" to 5)),
             dateKey = "2099-01-01",
-            paymentMethod = PaymentMethod.DIGITAL,
+            paymentMethod = PaymentMethod.OTHER,
             tipAmountRaw = 0L,
         )
         val msg = r as PosCheckoutCoordinator.PrepareResult.UserMessage

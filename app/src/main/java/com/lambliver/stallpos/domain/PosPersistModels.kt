@@ -58,7 +58,16 @@ data class PosCart(
 /** 付款方式：對帳與報表用；預設 [CASH] 以相容舊版銷售紀錄 */
 enum class PaymentMethod {
     CASH,
-    DIGITAL,
+    LINE_PAY,
+    JKOPAY,
+    OTHER,
+}
+
+val PaymentMethod.displayName: String get() = when (this) {
+    PaymentMethod.CASH -> "現金"
+    PaymentMethod.LINE_PAY -> "LINE Pay"
+    PaymentMethod.JKOPAY -> "街口支付"
+    PaymentMethod.OTHER -> "其他"
 }
 
 /** 結帳列：一般品或套組（套組 [unitPrice] 可為 0） */

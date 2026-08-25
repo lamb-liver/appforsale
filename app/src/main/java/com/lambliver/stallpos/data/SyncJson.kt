@@ -279,10 +279,7 @@ private fun locationJson(key: String, eventId: String?) = if (key == InventoryLo
     JSONObject().put("type", "EVENT").put("eventId", requireNotNull(eventId))
 }
 
-private fun PaymentMethod.toWirePayment() = when (this) {
-    PaymentMethod.CASH -> "CASH"
-    PaymentMethod.DIGITAL -> "OTHER"
-}
+private fun PaymentMethod.toWirePayment() = name
 
 private fun JSONObject.putNullable(key: String, value: Any?): JSONObject = put(key, value ?: JSONObject.NULL)
 private fun List<JSONObject>.toJsonArray() = fold(JSONArray()) { array, row -> array.put(row) }

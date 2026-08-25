@@ -17,15 +17,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.ImmutableList
 import java.text.NumberFormat
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -43,14 +45,14 @@ internal fun DashboardBottomSheet(
     currency:  NumberFormat,
     onDismiss: () -> Unit,
 ) {
+    var selectedSale by remember { mutableStateOf<SaleRecord?>(null) }
     val revenue = remember(todayLogs) { todayLogs.sumOf { it.total + it.tipAmount } }
-    val cashTotal = remember(todayLogs) {
-        todayLogs.filter { it.paymentMethod == PaymentMethod.CASH }.sumOf { it.total + it.tipAmount }
+    val paymentTotals = remember(todayLogs) {
+        PaymentMethod.entries.associateWith { method ->
+            todayLogs.filter { it.paymentMethod == method }.sumOf { it.total + it.tipAmount }
+        }
     }
-    val digitalTotal = remember(todayLogs) {
-        todayLogs.filter { it.paymentMethod == PaymentMethod.DIGITAL }.sumOf { it.total + it.tipAmount }
-    }
-    val payGrand = cashTotal + digitalTotal
+    val payGrand = paymentTotals.values.sum()
     val reversedSaleIds = remember(reversals) { reversals.mapTo(hashSetOf()) { it.saleId } }
     val recent = remember(allLogs) { allLogs.sortedByDescending { it.tsMillis }.take(20) }
 
@@ -102,7 +104,7 @@ internal fun DashboardBottomSheet(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             Text(
-                "現金 vs 行動支付",
+                "付款方式",
                 style      = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -113,43 +115,14 @@ internal fun DashboardBottomSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(16.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                ) {
-                    if (cashTotal > 0L) {
-                        Box(
-                            Modifier
-                                .fillMaxHeight()
-                                .weight(max(0.0001f, cashTotal.toFloat() / payGrand.toFloat()))
-                                .background(MaterialTheme.colorScheme.primary),
-                        )
-                    }
-                    if (digitalTotal > 0L) {
-                        Box(
-                            Modifier
-                                .fillMaxHeight()
-                                .weight(max(0.0001f, digitalTotal.toFloat() / payGrand.toFloat()))
-                                .background(MaterialTheme.colorScheme.tertiary),
-                        )
-                    }
+                paymentTotals.filterValues { it > 0L }.forEach { (method, amount) ->
+                    val percentage = (100.0 * amount.toDouble() / payGrand.toDouble()).roundToInt()
+                    Text(
+                        "${method.displayName}　${currency.format(amount)}　·　約 ${percentage}%",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
-                val cashPct = if (payGrand > 0) (100.0 * cashTotal.toDouble() / payGrand.toDouble()).roundToInt() else 0
-                val digPct  = (100 - cashPct).coerceIn(0, 100)
-                Text(
-                    "現金　${currency.format(cashTotal)}　·　約 ${cashPct}%",
-                    style      = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color      = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    "行動支付　${currency.format(digitalTotal)}　·　約 ${digPct}%",
-                    style      = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color      = MaterialTheme.colorScheme.onSurface,
-                )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -163,25 +136,58 @@ internal fun DashboardBottomSheet(
                 Text("尚無交易紀錄", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 recent.forEach { sale ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                    TextButton(
+                        onClick = { selectedSale = if (selectedSale?.id == sale.id) null else sale },
+                        modifier = Modifier.fillMaxWidth().testTag("recent-transaction-${sale.id}"),
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                sale.receiptNumber ?: sale.id,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                "${sale.dateKey} · ${if (sale.paymentMethod == PaymentMethod.CASH) "現金" else "行動支付"}${if (sale.id in reversedSaleIds) " · 已作廢" else ""}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (sale.id in reversedSaleIds) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                                Text(
+                                    sale.receiptNumber ?: sale.id,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    "${sale.dateKey} · ${sale.paymentMethod.displayName}${if (sale.id in reversedSaleIds) " · 已作廢" else ""}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (sale.id in reversedSaleIds) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(currency.format(sale.total + sale.tipAmount), fontWeight = FontWeight.Bold)
                         }
-                        Text(currency.format(sale.total + sale.tipAmount), fontWeight = FontWeight.Bold)
+                    }
+                    if (selectedSale?.id == sale.id) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .testTag("transaction-detail-${sale.id}")
+                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            sale.checkoutLines.forEach { line ->
+                                val name = when (line) {
+                                    is SaleCheckoutLine.Product -> line.displayName ?: productMap[line.productId]?.name ?: "已刪除商品"
+                                    is SaleCheckoutLine.Bundle -> line.displayName ?: "套組"
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("$name × ${line.qty}", Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(currency.format(line.lineSubtotal))
+                                }
+                            }
+                            if (sale.checkoutLines.isEmpty()) Text("自訂金額交易", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            DetailAmountRow("應收", sale.total, currency)
+                            if (sale.tipAmount > 0) DetailAmountRow("小費", sale.tipAmount, currency)
+                            DetailAmountRow("總收款", sale.total + sale.tipAmount, currency)
+                        }
                     }
                 }
             }
@@ -229,5 +235,14 @@ internal fun DashboardBottomSheet(
                 Text("關閉", style = MaterialTheme.typography.titleMedium)
             }
         }
+    }
+
+}
+
+@Composable
+private fun DetailAmountRow(label: String, amount: Long, currency: NumberFormat) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(currency.format(amount), fontWeight = FontWeight.Bold)
     }
 }

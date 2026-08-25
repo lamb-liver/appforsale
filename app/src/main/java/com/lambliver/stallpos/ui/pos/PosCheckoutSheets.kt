@@ -47,7 +47,7 @@ import java.text.NumberFormat
 internal object CheckoutSheetTestTags {
     const val RECEIVABLE = "checkout_sheet_receivable"
     const val CASH_INPUT = "checkout_cash_input"
-    const val DIGITAL_PAYMENT = "checkout_digital_payment"
+    const val LINE_PAY_PAYMENT = "checkout_line_pay_payment"
     const val CONFIRM = "checkout_confirm_button"
 }
 
@@ -438,7 +438,7 @@ internal fun CheckoutBottomSheet(
     val displayChange = (change - tipAbsorbed).coerceAtLeast(0L)
     val canCheckout = when {
         total <= 0L -> false
-        paymentMethod == PaymentMethod.DIGITAL -> true
+        paymentMethod != PaymentMethod.CASH -> true
         else -> received >= total
     }
 
@@ -466,25 +466,32 @@ internal fun CheckoutBottomSheet(
                             cashInput = ""
                         }
                     },
-                    shape         = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    shape         = SegmentedButtonDefaults.itemShape(index = 0, count = 4),
                 ) { Text("現金", fontWeight = FontWeight.Bold) }
                 SegmentedButton(
-                    selected      = paymentMethod == PaymentMethod.DIGITAL,
+                    selected      = paymentMethod == PaymentMethod.LINE_PAY,
                     onClick       = {
-                        if (paymentMethod != PaymentMethod.DIGITAL) {
-                            paymentMethod = PaymentMethod.DIGITAL
+                        if (paymentMethod != PaymentMethod.LINE_PAY) {
+                            paymentMethod = PaymentMethod.LINE_PAY
                             cashInput = ""
                         }
                     },
-                    modifier      = Modifier.testTag(CheckoutSheetTestTags.DIGITAL_PAYMENT),
-                    shape         = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                ) { Text("行動支付", fontWeight = FontWeight.Bold) }
+                    modifier      = Modifier.testTag(CheckoutSheetTestTags.LINE_PAY_PAYMENT),
+                    shape         = SegmentedButtonDefaults.itemShape(index = 1, count = 4),
+                ) { Text("LINE Pay", fontWeight = FontWeight.Bold) }
+                SegmentedButton(
+                    selected = paymentMethod == PaymentMethod.JKOPAY,
+                    onClick = { paymentMethod = PaymentMethod.JKOPAY; cashInput = "" },
+                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 4),
+                ) { Text("街口", fontWeight = FontWeight.Bold) }
+                SegmentedButton(
+                    selected = paymentMethod == PaymentMethod.OTHER,
+                    onClick = { paymentMethod = PaymentMethod.OTHER; cashInput = "" },
+                    shape = SegmentedButtonDefaults.itemShape(index = 3, count = 4),
+                ) { Text("其他", fontWeight = FontWeight.Bold) }
             }
             Text(
-                when (paymentMethod) {
-                    PaymentMethod.CASH    -> "結帳與找零"
-                    PaymentMethod.DIGITAL -> "行動支付結帳"
-                },
+                if (paymentMethod == PaymentMethod.CASH) "結帳與找零" else "${paymentMethod.displayName}結帳",
                 style      = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Black,
             )

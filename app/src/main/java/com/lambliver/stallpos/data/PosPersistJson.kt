@@ -60,7 +60,9 @@ internal fun encodeCartFlatJson(cart: Map<String, Int>): String =
 
 internal fun decodePaymentMethodPersist(raw: String): PaymentMethod =
     when (raw.uppercase(Locale.ROOT)) {
-        "DIGITAL" -> PaymentMethod.DIGITAL
+        "LINE_PAY" -> PaymentMethod.LINE_PAY
+        "JKOPAY" -> PaymentMethod.JKOPAY
+        "DIGITAL", "OTHER" -> PaymentMethod.OTHER
         else -> PaymentMethod.CASH
     }
 

@@ -74,7 +74,7 @@ class PosUiEventDispatchTest {
 
     @Test
     fun digitalLastCheckout_requiresExternalRefundWarning() {
-        val sale = SaleRecord("sale", 1, "d", 10, 0, 10, emptyMap(), paymentMethod = PaymentMethod.DIGITAL)
+        val sale = SaleRecord("sale", 1, "d", 10, 0, 10, emptyMap(), paymentMethod = PaymentMethod.LINE_PAY)
         val state = PosUiState(
             salesLog = persistentListOf(sale),
             lastCheckout = LastCheckout("sale", 1, 10, emptyMap(), emptyMap(), emptyMap()),

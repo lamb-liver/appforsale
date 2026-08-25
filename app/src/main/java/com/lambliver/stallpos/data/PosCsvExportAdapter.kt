@@ -75,10 +75,7 @@ internal fun writePosSalesCsvTo(
     writer.newLine()
     effectiveSales.forEach { r ->
         val details = formatSaleRecordDetailsForCsv(r, pm, bm)
-        val payLabel = when (r.paymentMethod) {
-            PaymentMethod.CASH    -> "現金"
-            PaymentMethod.DIGITAL -> "行動支付"
-        }
+        val payLabel = r.paymentMethod.displayName
         writer.write("${r.tsMillis},${r.dateKey},${escape(payLabel)},${r.subtotal},${r.discount},${r.total},${r.tipAmount},${escape(details)}")
         writer.newLine()
     }

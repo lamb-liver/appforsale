@@ -166,7 +166,13 @@ private fun decodeMovement(row: JSONObject) = InventoryMovement(
 private fun JSONObject.location() = if (getString("type") == "GENERAL") InventoryLocation.General
 else InventoryLocation.event(getString("eventId"))
 
-private fun JSONObject.paymentMethod() = if (getString("paymentMethod") == "CASH") PaymentMethod.CASH else PaymentMethod.DIGITAL
+private fun JSONObject.paymentMethod() = when (val value = getString("paymentMethod")) {
+    "CASH" -> PaymentMethod.CASH
+    "LINE_PAY" -> PaymentMethod.LINE_PAY
+    "JKOPAY" -> PaymentMethod.JKOPAY
+    "OTHER", "DIGITAL" -> PaymentMethod.OTHER
+    else -> error("Unsupported payment method: $value")
+}
 private fun JSONObject.isLive() = !has("deletedAtUtc") || isNull("deletedAtUtc")
 private fun JSONObject.nullableString(key: String) = if (!has(key) || isNull(key)) null else getString(key)
 private fun JSONObject.nullableLong(key: String) = if (!has(key) || isNull(key)) null else getLong(key)

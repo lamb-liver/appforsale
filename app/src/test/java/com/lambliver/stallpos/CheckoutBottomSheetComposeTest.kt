@@ -68,19 +68,19 @@ class CheckoutBottomSheetComposeTest {
     }
 
     @Test
-    fun digitalPayment_confirmWithoutCashInput() {
+    fun linePay_confirmWithoutCashInput() {
         var method: PaymentMethod? = null
         launchSheet(onConfirm = { m, _ -> method = m })
 
-        composeRule.onNodeWithTag(CheckoutSheetTestTags.DIGITAL_PAYMENT)
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.LINE_PAY_PAYMENT)
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag(CheckoutSheetTestTags.DIGITAL_PAYMENT).assertIsSelected()
+        composeRule.onNodeWithTag(CheckoutSheetTestTags.LINE_PAY_PAYMENT).assertIsSelected()
         composeRule.onNodeWithTag(CheckoutSheetTestTags.CONFIRM)
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
 
-        assertEquals(PaymentMethod.DIGITAL, method)
+        assertEquals(PaymentMethod.LINE_PAY, method)
     }
 
     @Test

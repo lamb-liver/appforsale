@@ -32,7 +32,7 @@ class SalesRecordsJsonTest {
     fun decode_digitalPayment_caseInsensitive() {
         val json =
             """[{"ts":1,"date":"d","subtotal":1,"discount":0,"total":1,"cart":{},"bundles":{},"paymentMethod":"digital","tipAmount":0,"lines":[],"stockDeductions":{}}]"""
-        assertEquals(PaymentMethod.DIGITAL, decodeSalesRecordsJson(json).single().paymentMethod)
+        assertEquals(PaymentMethod.OTHER, decodeSalesRecordsJson(json).single().paymentMethod)
     }
 
     @Test
@@ -63,7 +63,7 @@ class SalesRecordsJsonTest {
             total = 450L,
             cartSnapshot = mapOf("p1" to 1),
             bundleCartSnapshot = mapOf("bb" to 2),
-            paymentMethod = PaymentMethod.DIGITAL,
+            paymentMethod = PaymentMethod.JKOPAY,
             tipAmount = 10L,
             checkoutLines = listOf(SaleCheckoutLine.Product("p1", 1, 100L, 100L, "交易當下名稱")),
             stockDeductions = mapOf("p1" to 3L),

@@ -16,5 +16,5 @@ internal fun PosUiEvent.toSheetOverlayOrNull(): PosSheetOverlay? = when (this) {
 
 internal fun PosUiState.requiresNonCashVoidWarning(): Boolean {
     val saleId = lastCheckout?.saleId ?: return false
-    return salesLog.firstOrNull { it.id == saleId }?.paymentMethod == PaymentMethod.DIGITAL
+    return salesLog.firstOrNull { it.id == saleId }?.paymentMethod?.let { it != PaymentMethod.CASH } == true
 }

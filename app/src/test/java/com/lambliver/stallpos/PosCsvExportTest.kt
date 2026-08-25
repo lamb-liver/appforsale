@@ -46,7 +46,7 @@ class PosCsvExportTest {
     }
 
     @Test
-    fun csv_includeDigitalPaymentLabel() {
+    fun csv_includesSpecificPaymentLabel() {
         val r = SaleRecord(
             id = "sale-3",
             tsMillis = 2L,
@@ -55,10 +55,10 @@ class PosCsvExportTest {
             discount = 0L,
             total = 50L,
             cartSnapshot = mapOf("x" to 1),
-            paymentMethod = PaymentMethod.DIGITAL,
+            paymentMethod = PaymentMethod.JKOPAY,
         )
         val csv = buildPosSalesCsv("2026-05-13", listOf(r), emptyList(), emptyList(), emptyList())
-        assertTrue(csv.contains("\"行動支付\""))
+        assertTrue(csv.contains("\"街口支付\""))
     }
 
     @Test
