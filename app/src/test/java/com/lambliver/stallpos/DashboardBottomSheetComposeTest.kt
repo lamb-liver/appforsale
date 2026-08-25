@@ -6,11 +6,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollTo
 import com.lambliver.stallpos.domain.PaymentMethod
 import com.lambliver.stallpos.domain.SaleCheckoutLine
+import com.lambliver.stallpos.domain.SaleLineFinancialSnapshot
 import com.lambliver.stallpos.domain.SaleRecord
 import com.lambliver.stallpos.ui.pos.DashboardBottomSheet
 import com.lambliver.stallpos.ui.theme.StallPosTheme
@@ -32,17 +34,19 @@ class DashboardBottomSheetComposeTest {
     @OptIn(ExperimentalMaterial3Api::class)
     @Test
     fun recentTransaction_opensSnapshotDetail() {
+        val currency = NumberFormat.getCurrencyInstance(Locale.TAIWAN)
         val sale = SaleRecord(
             id = "sale-1",
             tsMillis = 1,
             dateKey = "2026-08-25",
-            subtotal = 120,
-            discount = 0,
-            total = 120,
+            subtotal = 90,
+            discount = 30,
+            total = 90,
             cartSnapshot = mapOf("p1" to 2),
             paymentMethod = PaymentMethod.CASH,
             receiptNumber = "TPE-0001",
             checkoutLines = listOf(SaleCheckoutLine.Product("p1", 2, 60, 120, "徽章")),
+            lineFinancialSnapshots = listOf(SaleLineFinancialSnapshot(0, null, 120, 30, 0, 90)),
         )
         composeRule.setContent {
             StallPosTheme {
@@ -54,7 +58,7 @@ class DashboardBottomSheetComposeTest {
                     allLogs = persistentListOf(sale),
                     reversals = persistentListOf(),
                     products = persistentListOf(),
-                    currency = NumberFormat.getCurrencyInstance(Locale.TAIWAN),
+                    currency = currency,
                     onDismiss = {},
                 )
             }
@@ -66,5 +70,7 @@ class DashboardBottomSheetComposeTest {
         composeRule.waitUntil(1_000) {
             composeRule.onAllNodesWithTag("transaction-detail-sale-1").fetchSemanticsNodes().isNotEmpty()
         }
+        composeRule.onNodeWithTag("transaction-line-amount-sale-1-0")
+            .assertTextEquals(currency.format(90))
     }
 }

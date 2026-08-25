@@ -172,14 +172,18 @@ internal fun DashboardBottomSheet(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            sale.checkoutLines.forEach { line ->
+                            val financialByLine = sale.lineFinancialSnapshots.associateBy { it.lineIndex }
+                            sale.checkoutLines.forEachIndexed { index, line ->
                                 val name = when (line) {
                                     is SaleCheckoutLine.Product -> line.displayName ?: productMap[line.productId]?.name ?: "已刪除商品"
                                     is SaleCheckoutLine.Bundle -> line.displayName ?: "套組"
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("$name × ${line.qty}", Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(currency.format(line.lineSubtotal))
+                                    Text(
+                                        currency.format(financialByLine[index]?.finalAmount ?: line.lineSubtotal),
+                                        Modifier.testTag("transaction-line-amount-${sale.id}-$index"),
+                                    )
                                 }
                             }
                             if (sale.checkoutLines.isEmpty()) Text("自訂金額交易", color = MaterialTheme.colorScheme.onSurfaceVariant)

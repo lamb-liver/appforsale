@@ -75,6 +75,8 @@ describe("read-only dashboard reports", () => {
     expect(html).toContain("交易查詢");
     const script = await (await api("/dashboard/dashboard.js", false)).text();
     expect(() => new Function(script)).not.toThrow();
+    expect(script).toContain("paymentLabels[x.method]||x.method");
+    expect(script).toContain("requestSequence!==transactionRequestSequence");
   });
 
   it("cursor-pages transaction history and returns snapshot detail including void status", async () => {
