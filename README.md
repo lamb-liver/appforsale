@@ -1,10 +1,10 @@
 # 小攤位 · 市集 POS
 
-**版本：v2.1.0**（`VERSION` · `versionName`）
+**版本：v2.1.1**（`VERSION` · `versionName`）
 
 **離線優先的 Android 市集 POS**：快選結帳、活動庫存、雲端備份／換機恢復，以及唯讀活動分析。
 
-> **v2.0 Local-first**：加密 Room v2 是裝置端真相源；離線交易先完成，再由 Outbox 同步至 Cloudflare Worker。雲端帳號與營運資料不因未活動自動刪除，只由使用者主動 Cloud Delete／Account Delete 移除。
+> **v2 Local-first**：加密 Room v2 是裝置端真相源；離線交易先完成，再由 Outbox 同步至 Cloudflare Worker。雲端帳號與營運資料不因未活動自動刪除，只由使用者主動 Cloud Delete／Account Delete 移除。
 
 > 本 repo 為 **Kotlin / Gradle** 專案（非 Node.js），依賴由 `gradle/libs.versions.toml` 管理。  
 > English: [README.en.md](docs/README.en.md) · **發佈／安裝／綠界**：[docs/distribution.md](docs/distribution.md)
@@ -15,14 +15,15 @@
 
 | 功能 | 說明 |
 |------|------|
-| 快選結帳 | 商品／套組、折扣、自訂金額、現金／行動支付、小費；主畫面橘色「結帳」按鈕顯示應收與件數 |
+| 快選結帳 | 商品／套組、商品名稱搜尋、折扣、自訂金額、現金／LINE Pay／街口支付／其他、小費；主畫面橘色「結帳」按鈕顯示應收與件數 |
 | 活動庫存 | GENERAL／EVENT 庫存調撥、損壞、調整、活動結束退回；套組與單品共用 component allocation |
 | 操作回饋 | 震動 + 音效（加入購物車／結帳成功／錯誤）；設定選單可獨立開關；靜音／震動模式只震不響 |
-| 活動與報表 | Event 建立／開始／結束；唯讀 Web Dashboard 顯示營收、趨勢、商品、時段、付款、Bundle 與庫存去化 |
+| 活動與報表 | Event 建立／開始／結束；唯讀 Web Dashboard 顯示營收、趨勢、商品、時段、付款、Bundle、庫存去化，以及可篩選／分頁的交易列表與 snapshot 明細 |
 | VOID | 保留原 Sale 並 append Void／庫存回補；重送只生效一次 |
 | 雲端同步／換機 | Google Login、Outbox 背景同步、裝置 transfer／forced retire、atomic bootstrap 與 Cloud epoch |
-| CSV 匯出 | 僅列有效交易的易讀報表；頂列檔案圖示 → SAF 選路徑存檔 → 系統分享選單 |
+| CSV 匯出 | Android 經 SAF 匯出有效交易；Web 依目前活動、付款與 ACTIVE／VOIDED 篩選匯出同一批交易 |
 | JSON 備份／還原 | 設定選單完整備份與還原（Room business data JSON exchange format） |
+| 診斷資訊 | 複製／分享版本、匿名裝置 ID、同步計數、最近 request ID 與錯誤碼；不含 token 或交易內容 |
 | 贊助開發者 | 自願支持（30／99／150 元）；設定選單 → 綠界付款頁（外部瀏覽器），與攤位結帳無關 |
 
 ---
@@ -114,11 +115,11 @@ stallpos/
 儀表測試（需模擬器／裝置）：`PosStoreInstrumentedTest`（Room 結帳／復原、rollback、關聯與大量歷史）。
 `LegacyRetirementInstrumentedTest` 驗證 v1.2／v1.3／v1.4 fixtures、全有或全無 cleanup 與 malformed legacy 隔離。
 
-v2.0 發布 gate（2026-08-24）：Android unit／lint／API 35 instrumented、production-signed v1.5→v2 upgrade、Worker unit／integration、雙 D1 migration、Dashboard browser smoke 與 production Restore Drill 均通過。
+v2.1.1 發布 gate（2026-08-26）：Android unit／lint／API 35 instrumented、production-signed v1.5→v2 upgrade、Worker unit／integration、雙 D1 migration、Dashboard browser smoke 與 production Restore Drill 均納入同一條 CI／release gate。
 
 ---
 
-### v2.0 資料與發佈契約
+### v2 資料與發佈契約
 
 | 項目 | 契約 |
 |------|------|
@@ -127,6 +128,8 @@ v2.0 發布 gate（2026-08-24）：Android unit／lint／API 35 instrumented、p
 | StallPOS JSON | 唯一正式跨安裝 business-data 搬遷格式 |
 | Android Auto Backup／D2D | 不支援；Manifest 與 Android 11／12+ 規則均排除 App data |
 | Release APK | 永久 production certificate 簽署；certificate fingerprint 見 `RELEASE_CERT_SHA256` |
+
+**正式版本**：[下載 StallPOS v2.1.1 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.1/StallPOS-2.1.1.apk) · [開啟唯讀 Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
 
 PR 與 `main` push 會執行 unit、lint、debug build 與 API 35 instrumented tests。Repository 必須先由 maintainer 啟用 Immutable Releases；`v*` tag 通過版本、main ancestry、CHANGELOG 與 Release collision 驗證後，才會建立 signed APK、APK SHA-256、draft Release，逐 byte 核對 assets，並在發布後驗證 `immutable=true`。既有 tag 若只因 pipeline 基礎設施失敗，可由手動入口重跑同一 tag，不得移動 tag。詳見 [android.yml](.github/workflows/android.yml) 與 [distribution.md](docs/distribution.md)。
 

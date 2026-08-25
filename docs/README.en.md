@@ -1,10 +1,10 @@
 # Stall POS · Market Checkout
 
-**Version: v2.1.0** (`VERSION` · `versionName`)
+**Version: v2.1.1** (`VERSION` · `versionName`)
 
 An **offline-first Android market POS** with quick checkout, event inventory, cloud backup/device recovery, and a read-only event dashboard.
 
-> **v2.0 Local-first**: encrypted Room v2 is the on-device source of truth. Transactions complete offline, then an Outbox synchronizes them through a Cloudflare Worker. Inactivity never deletes cloud account or business data; only explicit Cloud Delete or Account Delete does.
+> **v2 Local-first**: encrypted Room v2 is the on-device source of truth. Transactions complete offline, then an Outbox synchronizes them through a Cloudflare Worker. Inactivity never deletes cloud account or business data; only explicit Cloud Delete or Account Delete does.
 
 > This repo is a **Kotlin / Gradle** project (not Node.js). Dependencies are managed via `gradle/libs.versions.toml`.  
 > 中文說明: [README.md](../README.md) · **Distribution / install / ECPay**: [distribution.md](distribution.md)
@@ -15,14 +15,15 @@ An **offline-first Android market POS** with quick checkout, event inventory, cl
 
 | Feature | Notes |
 |---------|--------|
-| Quick checkout | Products / bundles, discounts, custom amount, cash / digital pay, tip; orange **Collect payment** bar shows amount due and item count |
+| Quick checkout | Products / bundles, product-name search, discounts, custom amount, cash / LINE Pay / JKOPAY / other, and tip |
 | Event inventory | GENERAL / EVENT transfers, damage, adjustments, event close returns, and bundle component allocation |
 | Haptic & sound | Tap / checkout success / error feedback; independent toggles in settings; silent & vibrate ringer modes = haptic only |
-| Events and reports | Event lifecycle plus a read-only web dashboard for revenue, trends, products, hours, payments, bundles, and sell-through |
+| Events and reports | Event lifecycle plus a read-only web dashboard for revenue, trends, products, hours, payments, bundles, sell-through, and cursor-paged transaction snapshots |
 | VOID | Preserves the Sale and appends one idempotent Void with inventory restoration |
 | Cloud sync / transfer | Google Login, background Outbox sync, device transfer / forced retirement, atomic bootstrap, and cloud epochs |
-| CSV export | A readable report of active transactions only, saved through SAF and shared with the system sheet |
+| CSV export | Android exports active transactions through SAF; Web exports the current event with the same payment and ACTIVE / VOIDED filters |
 | JSON backup / restore | Full Room business data in the existing JSON exchange format |
+| Diagnostics | Copy/share app version, anonymous device ID, sync counts, recent request IDs, and error codes without tokens or transaction content |
 | Sponsor developer | Voluntary support (NT$30 / 99 / 150); settings → ECPay in external browser; not stall checkout |
 
 ---
@@ -114,7 +115,7 @@ Both are **5** today. Old **schemaVersion: 1 / 2 / 3 / 4** files migrate stepwis
 Instrumented (device/emulator): `PosStoreInstrumentedTest` (Room checkout/undo, rollback, relations, and large history).
 `LegacyRetirementInstrumentedTest` covers v1.2/v1.3/v1.4 fixtures, all-or-nothing cleanup, and malformed legacy isolation.
 
-v2.0 release gate (2026-08-24): Android unit, lint, API 35 instrumented, production-signed v1.5→v2 upgrade, Worker unit/integration, both D1 migration sets, dashboard browser smoke, and the production Restore Drill passed.
+v2.1.1 release gate (2026-08-26): Android unit, lint, API 35 instrumented, production-signed v1.5→v2 upgrade, Worker unit/integration, both D1 migration sets, dashboard browser smoke, and the production Restore Drill remain part of one CI/release gate.
 
 ### Data and distribution ownership
 
@@ -124,6 +125,8 @@ v2.0 release gate (2026-08-24): Android unit, lint, API 35 instrumented, product
 | DataStore `pos_store` | UI preferences; legacy business keys retire all-or-nothing |
 | StallPOS JSON | Only supported cross-install business-data transfer format |
 | Android Auto Backup / D2D | Unsupported and excluded by the manifest and backup rules |
+
+**Production**: [download StallPOS v2.1.1 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.1/StallPOS-2.1.1.apk) · [open the read-only Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
 
 ---
 

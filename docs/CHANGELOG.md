@@ -2,6 +2,13 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [2.1.1] - 2026-08-26
+
+### Fixed
+
+- Android 交易明細改讀已保存的行項財務快照，折扣或調整後的小計會與應收金額一致
+- Web Dashboard 付款報表顯示可讀名稱，並拒絕過期的交易篩選回應覆蓋最新結果
+
 ## [2.1.0] - 2026-08-26
 
 ### Added
@@ -146,6 +153,7 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[2.1.1]: https://github.com/lamb-liver/appforsale/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/lamb-liver/appforsale/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/lamb-liver/appforsale/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/lamb-liver/appforsale/compare/v1.4.0...v1.5.0
