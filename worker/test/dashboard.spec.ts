@@ -70,7 +70,66 @@ describe("read-only dashboard reports", () => {
     const page = await api("/dashboard", false);
     expect(page.status).toBe(200);
     expect(page.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
-    expect(await page.text()).toContain("活動分析");
+    const html = await page.text();
+    expect(html).toContain("活動分析");
+    expect(html).toContain("交易查詢");
+    const script = await (await api("/dashboard/dashboard.js", false)).text();
+    expect(() => new Function(script)).not.toThrow();
+  });
+
+  it("cursor-pages transaction history and returns snapshot detail including void status", async () => {
+    const firstResponse = await api(`/v2/reports/events/${eventId}/transactions?limit=2`);
+    expect(firstResponse.status).toBe(200);
+    const first = await firstResponse.json() as {
+      transactions: Array<{ id: string; voided: boolean; itemCount: number }>;
+      nextCursor: string | null;
+    };
+    expect(first.transactions).toHaveLength(2);
+    expect(first.transactions[0]).toMatchObject({ id: "90000000-0000-4000-8000-000000000090", voided: true, itemCount: 99 });
+    expect(first.nextCursor).not.toBeNull();
+
+    const secondResponse = await api(
+      `/v2/reports/events/${eventId}/transactions?limit=2&cursor=${encodeURIComponent(first.nextCursor!)}`,
+    );
+    const second = await secondResponse.json() as { transactions: Array<{ id: string }> };
+    expect(second.transactions).toHaveLength(2);
+    expect(second.transactions.map((row) => row.id)).not.toContain(first.transactions[0]!.id);
+
+    const detailResponse = await api(`/v2/reports/events/${eventId}/transactions/90000000-0000-4000-8000-000000000080`);
+    expect(detailResponse.status).toBe(200);
+    expect(await detailResponse.json()).toMatchObject({
+      eventId,
+      transaction: {
+        receiptNumber: "90000000-0000-4000-8000-000000000080",
+        paymentMethod: "CASH",
+        finalTotal: 200,
+        void: null,
+        lines: [{ displayName: "徽章雙入組", itemType: "BUNDLE", quantity: 1 }],
+        bundleComponents: [{ productNameSnapshot: "徽章", quantity: 2, allocatedRevenue: 200 }],
+      },
+    });
+  });
+
+  it("filters transaction history and exports the same event rows as CSV", async () => {
+    const filtered = await api(`/v2/reports/events/${eventId}/transactions?paymentMethod=OTHER&status=ACTIVE`);
+    expect(filtered.status).toBe(200);
+    const body = await filtered.json() as { transactions: Array<{ paymentMethod: string; voided: boolean }> };
+    expect(body.transactions).toHaveLength(2);
+    expect(body.transactions.every((row) => row.paymentMethod === "OTHER" && !row.voided)).toBe(true);
+
+    const csv = await api(`/v2/reports/events/${eventId}/transactions.csv?paymentMethod=OTHER&status=ACTIVE`);
+    expect(csv.status).toBe(200);
+    expect(csv.headers.get("content-type")).toContain("text/csv");
+    expect(csv.headers.get("content-disposition")).toContain("stallpos-TPE26-transactions.csv");
+    const text = await csv.text();
+    expect(text).toContain("receipt_number,occurred_at_utc,status,payment_method");
+    expect(text.match(/,OTHER,/g)).toHaveLength(2);
+    expect(text).not.toContain("VOIDED");
+  });
+
+  it("rejects malformed transaction cursors and isolates event ownership", async () => {
+    expect((await api(`/v2/reports/events/${eventId}/transactions?cursor=broken`)).status).toBe(400);
+    expect((await api("/v2/reports/events/70000000-0000-4000-8000-000000000099/transactions")).status).toBe(404);
   });
 
   it("uses report indexes for event sales and inventory lookups", async () => {

@@ -1,6 +1,6 @@
 # StallPOS v2 wire contract
 
-Contract version: `2.0.0`
+Contract version: `2.1.0`
 
 This directory is the shared Android/Worker contract. JSON fixtures are the
 golden examples; neither client may rename fields or change nullability without
@@ -102,6 +102,12 @@ same effective Sale and is hidden below five shared Sales. Daily and hourly
 buckets use the Event IANA timezone. Inventory sell-through is sold quantity
 divided by stock supplied to that Event.
 
+Transaction history uses `GET /v2/reports/events/{eventId}/transactions` with
+keyset pagination ordered by `(occurredAtUtc, id)`. Optional `paymentMethod`
+and `status=ACTIVE|VOIDED` filters are shared by the list and
+`transactions.csv` export. Detail reads immutable Sale line and bundle-component
+snapshots from `GET /v2/reports/events/{eventId}/transactions/{saleId}`.
+
 ## Fixtures
 
 - `master-batch.json`: category/product/bundle/event/inventory master data.
@@ -112,5 +118,7 @@ divided by stock supplied to that Event.
 - `sync-response-blocked.json`: mixed ACK/BLOCKED response.
 - `bootstrap.json`: one cursor-paged transaction group.
 - `event-report.json`: read-only event summary.
+- `transaction-list.json`: keyset-paged event transaction summaries.
+- `transaction-detail.json`: immutable transaction snapshot detail.
 - `device-state.json`: active device and current cloud epoch.
 - `outbox-pending.json`: local pending operation record.

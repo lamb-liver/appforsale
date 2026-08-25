@@ -6,6 +6,8 @@
     { "$ref": "#/$defs/syncBatchResponse" },
     { "$ref": "#/$defs/bootstrapResponse" },
     { "$ref": "#/$defs/eventReport" },
+    { "$ref": "#/$defs/transactionListResponse" },
+    { "$ref": "#/$defs/transactionDetailResponse" },
     { "$ref": "#/$defs/errorResponse" }
   ],
   "$defs": {
@@ -66,6 +68,79 @@
         "transactionCount": { "type": "integer", "minimum": 0 },
         "itemCount": { "type": "integer", "minimum": 0 },
         "averageOrderValue": { "$ref": "#/$defs/money" }
+      }
+    },
+    "paymentMethod": { "enum": ["CASH", "LINE_PAY", "JKOPAY", "OTHER"] },
+    "transactionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "receiptNumber", "occurredAtUtc", "paymentMethod", "finalTotal", "tipAmount", "revenue", "voided", "itemCount"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "receiptNumber": { "type": "string", "minLength": 1 },
+        "occurredAtUtc": { "type": "string", "format": "date-time" },
+        "paymentMethod": { "$ref": "#/$defs/paymentMethod" },
+        "finalTotal": { "$ref": "#/$defs/money" },
+        "tipAmount": { "$ref": "#/$defs/money" },
+        "revenue": { "$ref": "#/$defs/money" },
+        "voided": { "type": "boolean" },
+        "itemCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "transactionListResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "eventId", "transactions", "nextCursor"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "eventId": { "$ref": "#/$defs/uuid" },
+        "transactions": { "type": "array", "items": { "$ref": "#/$defs/transactionSummary" } },
+        "nextCursor": { "type": ["string", "null"] }
+      }
+    },
+    "transactionDetailResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "eventId", "transaction"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "eventId": { "$ref": "#/$defs/uuid" },
+        "transaction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "receiptNumber", "occurredAtUtc", "deviceId", "paymentMethod", "subtotal", "discountAmount", "netAdjustment", "finalTotal", "tipAmount", "revenue", "void", "lines", "bundleComponents"],
+          "properties": {
+            "id": { "$ref": "#/$defs/uuid" },
+            "receiptNumber": { "type": "string", "minLength": 1 },
+            "occurredAtUtc": { "type": "string", "format": "date-time" },
+            "deviceId": { "$ref": "#/$defs/uuid" },
+            "paymentMethod": { "$ref": "#/$defs/paymentMethod" },
+            "subtotal": { "$ref": "#/$defs/money" },
+            "discountAmount": { "$ref": "#/$defs/money" },
+            "netAdjustment": { "type": "integer" },
+            "finalTotal": { "$ref": "#/$defs/money" },
+            "tipAmount": { "$ref": "#/$defs/money" },
+            "revenue": { "$ref": "#/$defs/money" },
+            "void": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "occurredAtUtc", "reason", "paymentMethod"],
+                  "properties": {
+                    "id": { "$ref": "#/$defs/uuid" },
+                    "occurredAtUtc": { "type": "string", "format": "date-time" },
+                    "reason": { "type": "string", "minLength": 1 },
+                    "paymentMethod": { "$ref": "#/$defs/paymentMethod" }
+                  }
+                },
+                { "type": "null" }
+              ]
+            },
+            "lines": { "type": "array", "items": { "$ref": "sync-batch.schema.json#/$defs/saleLine" } },
+            "bundleComponents": { "type": "array", "items": { "$ref": "sync-batch.schema.json#/$defs/componentAllocation" } }
+          }
+        }
       }
     },
     "errorResponse": {

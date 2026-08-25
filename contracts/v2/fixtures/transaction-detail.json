@@ -1,0 +1,43 @@
+{
+  "requestId": "10000000-0000-4000-8000-000000000009",
+  "eventId": "70000000-0000-4000-8000-000000000001",
+  "transaction": {
+    "id": "90000000-0000-4000-8000-000000000001",
+    "receiptNumber": "CWT74-A-0001",
+    "occurredAtUtc": "2026-08-24T03:15:00Z",
+    "deviceId": "20000000-0000-4000-8000-000000000001",
+    "paymentMethod": "LINE_PAY",
+    "subtotal": 100,
+    "discountAmount": 10,
+    "netAdjustment": 0,
+    "finalTotal": 90,
+    "tipAmount": 10,
+    "revenue": 100,
+    "void": null,
+    "lines": [
+      {
+        "lineIndex": 0,
+        "itemType": "BUNDLE",
+        "itemRefId": "60000000-0000-4000-8000-000000000001",
+        "displayName": "徽章兩入組",
+        "quantity": 1,
+        "unitPrice": 100,
+        "unitCostSnapshot": null,
+        "originalAmount": 100,
+        "allocatedDiscount": 10,
+        "allocatedAdjustment": 0,
+        "finalAmount": 90
+      }
+    ],
+    "bundleComponents": [
+      {
+        "lineIndex": 0,
+        "productId": "50000000-0000-4000-8000-000000000001",
+        "productNameSnapshot": "生日徽章",
+        "unitCostSnapshot": 25,
+        "quantity": 2,
+        "allocatedRevenue": 90
+      }
+    ]
+  }
+}

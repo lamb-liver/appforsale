@@ -5,11 +5,17 @@ import { authenticateDashboard, handleDashboardLogin, handleDashboardLogout } fr
 import { errorJson, HttpError, json, requestIdFor } from "./http";
 import { handleClaimTransfer, handleCommitTransfer, handleCreateTransfer, handleDelete, reconcileDeletionTombstones } from "./lifecycle";
 import { handleBootstrap, handleSync } from "./sync";
-import { handleEventReport, handleEventReports } from "./reports";
+import {
+  handleEventReport,
+  handleEventReports,
+  handleEventTransactionDetail,
+  handleEventTransactions,
+  handleEventTransactionsCsv,
+} from "./reports";
 import { operationalAlert, rateLimitResponse, runScheduledOps, sentryOptions } from "./ops";
 
 const handler = {
-  async fetch(request, env, _ctx): Promise<Response> {
+  async fetch(request, env, ctx): Promise<Response> {
     const requestId = requestIdFor(request);
     try {
       const url = new URL(request.url);
@@ -38,9 +44,42 @@ const handler = {
       if (request.method === "GET" && url.pathname === "/v2/reports/events") {
         return await handleEventReports(env, (await authenticateDashboard(request, env)).userId, requestId);
       }
-      if (request.method === "GET" && url.pathname.startsWith("/v2/reports/events/")) {
-        const eventId = url.pathname.slice("/v2/reports/events/".length);
-        return await handleEventReport(env, (await authenticateDashboard(request, env)).userId, eventId, requestId);
+      if (request.method === "GET") {
+        const detail = url.pathname.match(/^\/v2\/reports\/events\/([^/]+)\/transactions\/([^/]+)$/);
+        if (detail) {
+          return await handleEventTransactionDetail(
+            env,
+            (await authenticateDashboard(request, env)).userId,
+            detail[1]!,
+            detail[2]!,
+            requestId,
+          );
+        }
+        const transactions = url.pathname.match(/^\/v2\/reports\/events\/([^/]+)\/transactions$/);
+        if (transactions) {
+          return await handleEventTransactions(
+            request,
+            env,
+            (await authenticateDashboard(request, env)).userId,
+            transactions[1]!,
+            requestId,
+          );
+        }
+        const csv = url.pathname.match(/^\/v2\/reports\/events\/([^/]+)\/transactions\.csv$/);
+        if (csv) {
+          return await handleEventTransactionsCsv(
+            request,
+            env,
+            (await authenticateDashboard(request, env)).userId,
+            csv[1]!,
+            requestId,
+            ctx,
+          );
+        }
+        const report = url.pathname.match(/^\/v2\/reports\/events\/([^/]+)$/);
+        if (report) {
+          return await handleEventReport(env, (await authenticateDashboard(request, env)).userId, report[1]!, requestId);
+        }
       }
       if (request.method === "POST" && url.pathname === "/v2/devices/transfer") {
         return await handleCreateTransfer(request, env, await authenticate(request, env), requestId);

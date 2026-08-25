@@ -64,6 +64,16 @@ class V2ContractFixtureTest {
             report.getLong("revenue"),
             report.getLong("grossProfit") + report.getLong("knownCost"),
         )
+
+        val transactions = JSONObject(fixture("transaction-list.json"))
+        val summary = transactions.getJSONArray("transactions").getJSONObject(0)
+        assertEquals("LINE_PAY", summary.getString("paymentMethod"))
+        requireUtc(summary.getString("occurredAtUtc"))
+        assertInteger(summary, "revenue")
+
+        val detail = JSONObject(fixture("transaction-detail.json")).getJSONObject("transaction")
+        assertEquals(summary.getString("id"), detail.getString("id"))
+        assertEquals(90L, detail.getJSONArray("lines").getJSONObject(0).getLong("finalAmount"))
     }
 
     @Test

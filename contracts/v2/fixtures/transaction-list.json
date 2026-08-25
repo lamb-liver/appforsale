@@ -1,0 +1,18 @@
+{
+  "requestId": "10000000-0000-4000-8000-000000000008",
+  "eventId": "70000000-0000-4000-8000-000000000001",
+  "transactions": [
+    {
+      "id": "90000000-0000-4000-8000-000000000001",
+      "receiptNumber": "CWT74-A-0001",
+      "occurredAtUtc": "2026-08-24T03:15:00Z",
+      "paymentMethod": "LINE_PAY",
+      "finalTotal": 90,
+      "tipAmount": 10,
+      "revenue": 100,
+      "voided": false,
+      "itemCount": 2
+    }
+  ],
+  "nextCursor": "WyIyMDI2LTA4LTI0VDAzOjE1OjAwWiIsIjkwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSJd"
+}
