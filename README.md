@@ -1,6 +1,6 @@
 # 小攤位 · 市集 POS
 
-**版本：v2.0.0**（`VERSION` · `versionName`）
+**版本：v2.1.0**（`VERSION` · `versionName`）
 
 **離線優先的 Android 市集 POS**：快選結帳、活動庫存、雲端備份／換機恢復，以及唯讀活動分析。
 

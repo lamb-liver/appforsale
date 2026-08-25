@@ -2,6 +2,23 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [2.1.0] - 2026-08-26
+
+### Added
+
+- Web 活動交易列表、keyset cursor 分頁與 snapshot 交易明細；Android 最近交易可展開明細
+- Web 活動交易 CSV，與交易列表共用付款方式及 ACTIVE／VOIDED 篩選
+- 一般商品名稱搜尋，套用於既有本機分類結果
+- 可複製或分享的去識別診斷資訊：版本、匿名裝置 ID、同步計數、最近 request ID 與錯誤碼
+
+### Changed
+
+- Android 付款方式對齊 `CASH`／`LINE_PAY`／`JKOPAY`／`OTHER`；legacy `DIGITAL` 相容讀取為 `OTHER`
+
+### Verification
+
+- Android unit／lint／AndroidTest 編譯／debug APK 與 Worker typecheck／unit／integration 全數通過
+
 ## [2.0.0] - 2026-08-24
 
 ### Added
@@ -129,6 +146,7 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[2.1.0]: https://github.com/lamb-liver/appforsale/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/lamb-liver/appforsale/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/lamb-liver/appforsale/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/lamb-liver/appforsale/releases/tag/v1.4.0

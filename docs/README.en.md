@@ -1,6 +1,6 @@
 # Stall POS · Market Checkout
 
-**Version: v2.0.0** (`VERSION` · `versionName`)
+**Version: v2.1.0** (`VERSION` · `versionName`)
 
 An **offline-first Android market POS** with quick checkout, event inventory, cloud backup/device recovery, and a read-only event dashboard.
 
