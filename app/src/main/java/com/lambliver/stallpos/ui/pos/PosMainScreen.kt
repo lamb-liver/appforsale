@@ -16,6 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +63,7 @@ internal fun PosMainScreen(
     onSoundEnabledChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val productSearchText = rememberSaveable { mutableStateOf("") }
     Column(modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
@@ -250,25 +253,41 @@ internal fun PosMainScreen(
         }
 
         when (catalogTab) {
-            CatalogTab.Products -> ProductQuickRow(
-                products = uiState.products,
-                categories = uiState.categories,
-                cart = uiState.cart.products.toImmutableMap(),
-                currency = currency,
-                onTap = { product ->
-                    onUiEvent(
-                        PosUiEvent.SetProductCartQty(
-                            product.id,
-                            (uiState.cart.products[product.id] ?: 0) + 1,
-                        ),
-                    )
-                },
-                onLongPress = { onUiEvent(PosUiEvent.ProductLongPress(it)) },
-                onLongPressCategory = { onUiEvent(PosUiEvent.CategoryLongPress(it)) },
-                onTilePressFeedback = feedback::lightTap,
-                modifier = Modifier.fillMaxWidth().weight(1f)
-                    .onGloballyPositioned { tourBounds.productRow.value = it.boundsInRoot() },
-            )
+            CatalogTab.Products -> Column(Modifier.fillMaxWidth().weight(1f)) {
+                OutlinedTextField(
+                    value = productSearchText.value,
+                    onValueChange = { productSearchText.value = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    placeholder = { Text("搜尋商品名稱") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = if (productSearchText.value.isEmpty()) null else {{
+                        IconButton(onClick = { productSearchText.value = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "清除搜尋")
+                        }
+                    }},
+                    singleLine = true,
+                )
+                ProductQuickRow(
+                    products = uiState.products,
+                    categories = uiState.categories,
+                    cart = uiState.cart.products.toImmutableMap(),
+                    currency = currency,
+                    searchText = productSearchText.value,
+                    onTap = { product ->
+                        onUiEvent(
+                            PosUiEvent.SetProductCartQty(
+                                product.id,
+                                (uiState.cart.products[product.id] ?: 0) + 1,
+                            ),
+                        )
+                    },
+                    onLongPress = { onUiEvent(PosUiEvent.ProductLongPress(it)) },
+                    onLongPressCategory = { onUiEvent(PosUiEvent.CategoryLongPress(it)) },
+                    onTilePressFeedback = feedback::lightTap,
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                        .onGloballyPositioned { tourBounds.productRow.value = it.boundsInRoot() },
+                )
+            }
 
             CatalogTab.Bundles -> BundleQuickRow(
                 bundles = uiState.bundles,

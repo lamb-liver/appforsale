@@ -114,6 +114,7 @@ internal fun ProductQuickRow(
     onTap:              (Product) -> Unit,
     onLongPress:        (Product) -> Unit,
     onLongPressCategory:(Category) -> Unit,
+    searchText:          String = "",
     onTilePressFeedback: () -> Unit = {},
     modifier:           Modifier = Modifier,
 ) {
@@ -168,18 +169,22 @@ internal fun ProductQuickRow(
         }
 
         // ── 商品格線（依選取分類篩選；cart 變動不重复配置 filter）────────
-        val visibleProducts by remember(products, categories) {
+        val visibleProducts by remember(products, categories, selectedCatId, searchText) {
             derivedStateOf {
-                when {
+                val inCategory = when {
                     categories.isEmpty()        -> products
                     selectedCatId == ""         -> products
                     selectedCatId == "__none__" -> products.filter { it.categoryId.isEmpty() }
                     else                        -> products.filter { it.categoryId == selectedCatId }
                 }
+                val query = searchText.trim()
+                if (query.isEmpty()) inCategory else inCategory.filter { it.name.contains(query, ignoreCase = true) }
             }
         }
 
-        LazyVerticalGrid(
+        if (visibleProducts.isEmpty()) Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            Text("找不到符合的商品", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else LazyVerticalGrid(
             columns               = GridCells.Fixed(2),
             modifier              = Modifier.weight(1f),
             contentPadding        = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
