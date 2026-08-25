@@ -62,6 +62,8 @@ internal fun PosAppOverlays(
     feedback: PosFeedbackManager,
     cloudLoginConfigured: Boolean,
     onGoogleSignIn: () -> Unit,
+    onCopyDiagnostics: () -> Unit,
+    onShareDiagnostics: () -> Unit,
 ) {
     SponsorDeveloperBottomSheet(
         visible = sheetOverlay == PosSheetOverlay.Sponsor,
@@ -75,6 +77,8 @@ internal fun PosAppOverlays(
             onEvent = vm::onEvent,
             cloudLoginConfigured = cloudLoginConfigured,
             onGoogleSignIn = onGoogleSignIn,
+            onCopyDiagnostics = onCopyDiagnostics,
+            onShareDiagnostics = onShareDiagnostics,
         )
     }
 
@@ -307,7 +311,7 @@ internal fun PosAppOverlays(
             onDismissRequest = onDismissNonCashVoidConfirm,
             title = { Text("作廢非現金交易？") },
             text = {
-                Text("這筆為行動支付。StallPOS 只會作廢本機紀錄並補回庫存，不會自動退回外部款項。")
+                Text("這筆為非現金付款。StallPOS 只會作廢本機紀錄並補回庫存，不會自動退回外部款項。")
             },
             confirmButton = {
                 TextButton(onClick = onConfirmNonCashVoid) {

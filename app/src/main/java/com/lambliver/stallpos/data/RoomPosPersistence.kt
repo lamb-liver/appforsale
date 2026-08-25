@@ -594,6 +594,13 @@ internal class RoomPosPersistence(
         deviceStateOrCreate(System.currentTimeMillis()).deviceId
     }
 
+    override suspend fun diagnosticInfo(): SyncDiagnosticInfo = SyncDiagnosticInfo(
+        deviceId = v2Dao.deviceState()?.deviceId,
+        lastSyncAtMillis = v2Dao.lastSyncedAtMillis(),
+        recentRequestIds = v2Dao.cloudValue(SyncCloudKeys.RECENT_REQUEST_IDS).jsonStrings(),
+        recentErrorCodes = v2Dao.cloudValue(SyncCloudKeys.RECENT_ERROR_CODES).jsonStrings(),
+    )
+
     internal suspend fun activateCloudSession(
         baseUrl: String,
         accessToken: String,
@@ -1348,3 +1355,8 @@ internal class RoomPosPersistence(
         )
     }
 }
+
+private fun String?.jsonStrings(): List<String> = runCatching {
+    val rows = JSONArray(this ?: "[]")
+    List(rows.length()) { rows.getString(it) }
+}.getOrDefault(emptyList())

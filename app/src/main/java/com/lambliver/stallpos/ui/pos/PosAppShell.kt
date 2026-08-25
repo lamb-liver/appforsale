@@ -2,6 +2,7 @@ package com.lambliver.stallpos.ui.pos
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -146,6 +147,25 @@ internal fun PosAppShell(
             uiState = uiState,
         )
     }
+    val copyDiagnostics: () -> Unit = {
+        scope.launch {
+            val text = vm.diagnosticText()
+            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText("StallPOS diagnostics", text))
+            snackbarHostState.showSnackbar("診斷資訊已複製")
+        }
+    }
+    val shareDiagnostics: () -> Unit = {
+        scope.launch {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "StallPOS 診斷資訊")
+                putExtra(Intent.EXTRA_TEXT, vm.diagnosticText())
+            }
+            runCatching { context.startActivity(Intent.createChooser(intent, "分享診斷資訊")) }
+                .onFailure { snackbarHostState.showSnackbar("沒有可分享文字的應用程式") }
+        }
+    }
 
     val suppressExit = overlay.blocksExitConfirmation(uiState, showTour, numpadExpanded)
 
@@ -251,5 +271,7 @@ internal fun PosAppShell(
         feedback = feedback,
         cloudLoginConfigured = cloudLoginConfigured,
         onGoogleSignIn = onGoogleSignIn,
+        onCopyDiagnostics = copyDiagnostics,
+        onShareDiagnostics = shareDiagnostics,
     )
 }

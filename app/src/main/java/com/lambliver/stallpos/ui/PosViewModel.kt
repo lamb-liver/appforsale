@@ -1,7 +1,9 @@
 package com.lambliver.stallpos.ui
 
 import android.app.Application
+import android.os.Build
 import android.util.Log
+import com.lambliver.stallpos.BuildConfig
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -180,6 +182,13 @@ class PosViewModel @JvmOverloads constructor(
         emitToast("Google 登入未完成：${message ?: "請稍後再試"}", PosToastSeverity.Error)
     }
 
+    internal suspend fun diagnosticText(): String = buildDiagnosticText(
+        appVersion = BuildConfig.VERSION_NAME,
+        androidVersion = Build.VERSION.RELEASE,
+        sync = posUiState.value.sync,
+        info = posStore.diagnosticInfo(),
+    )
+
     private fun startObserving() {
         viewModelScope.launch {
             combine(posStore.snapshot, posCartMemory, posStore.syncStateFlow) { storeSnap, cart, sync ->
@@ -267,4 +276,21 @@ class PosViewModel @JvmOverloads constructor(
             return fmt.format(amount)
         }
     }
+}
+
+internal fun buildDiagnosticText(
+    appVersion: String,
+    androidVersion: String,
+    sync: SyncUiState,
+    info: com.lambliver.stallpos.data.SyncDiagnosticInfo,
+): String = buildString {
+    appendLine("StallPOS 診斷資訊")
+    appendLine("App version: $appVersion")
+    appendLine("Android version: $androidVersion")
+    appendLine("Device anonymous id: ${info.deviceId ?: "unknown"}")
+    appendLine("Pending: ${sync.pendingCount}")
+    appendLine("Blocked: ${sync.blockedCount}")
+    appendLine("Last sync: ${info.lastSyncAtMillis?.let { Date(it) } ?: "never"}")
+    appendLine("Recent request IDs: ${info.recentRequestIds.joinToString().ifEmpty { "none" }}")
+    append("Recent error codes: ${info.recentErrorCodes.joinToString().ifEmpty { "none" }}")
 }

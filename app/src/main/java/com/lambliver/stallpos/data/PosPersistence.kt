@@ -43,7 +43,15 @@ interface PosPersistence {
         to: InventoryLocation?,
         type: InventoryMovementType,
     ): Unit = error("Inventory requires v2 Room persistence")
+    suspend fun diagnosticInfo(): SyncDiagnosticInfo = SyncDiagnosticInfo()
 }
+
+data class SyncDiagnosticInfo(
+    val deviceId: String? = null,
+    val lastSyncAtMillis: Long? = null,
+    val recentRequestIds: List<String> = emptyList(),
+    val recentErrorCodes: List<String> = emptyList(),
+)
 
 data class PosPersistSnapshot(
     val products: List<Product> = emptyList(),

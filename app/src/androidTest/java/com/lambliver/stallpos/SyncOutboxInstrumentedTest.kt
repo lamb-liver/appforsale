@@ -9,6 +9,7 @@ import com.lambliver.stallpos.data.LEGACY_IMPORT_VERSION_KEY
 import com.lambliver.stallpos.data.RoomPosPersistence
 import com.lambliver.stallpos.data.StallPosV2Database
 import com.lambliver.stallpos.data.SyncEngine
+import com.lambliver.stallpos.data.SyncCloudKeys
 import com.lambliver.stallpos.data.SyncHttpResponse
 import com.lambliver.stallpos.data.SyncRunResult
 import com.lambliver.stallpos.data.SyncTransport
@@ -115,6 +116,9 @@ class SyncOutboxInstrumentedTest {
         assertEquals(SyncRunResult.SUCCESS, engine.runOnce())
         assertEquals(operationIds(requests[0]), operationIds(requests[1]))
         assertTrue(database.v2Dao().outboxRows().all { it.status == "SYNCED" })
+        assertEquals(2, JSONArray(database.v2Dao().cloudValue(SyncCloudKeys.RECENT_REQUEST_IDS)).length())
+        assertEquals("NETWORK", JSONArray(database.v2Dao().cloudValue(SyncCloudKeys.RECENT_ERROR_CODES)).getString(0))
+        assertEquals(clock, database.v2Dao().lastSyncedAtMillis())
     }
 
     @Test

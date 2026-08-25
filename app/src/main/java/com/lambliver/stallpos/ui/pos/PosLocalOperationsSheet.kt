@@ -43,6 +43,8 @@ internal fun LocalOperationsBottomSheet(
     onEvent: (PosEvent) -> Unit,
     cloudLoginConfigured: Boolean = false,
     onGoogleSignIn: () -> Unit = {},
+    onCopyDiagnostics: () -> Unit = {},
+    onShareDiagnostics: () -> Unit = {},
 ) {
     var eventName by rememberSaveable { mutableStateOf("") }
     var eventLocation by rememberSaveable { mutableStateOf("") }
@@ -75,6 +77,10 @@ internal fun LocalOperationsBottomSheet(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) {
                     Text(if (cloudLoginConfigured) "使用 Google 登入雲端" else "雲端登入尚未設定")
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onCopyDiagnostics, modifier = Modifier.weight(1f)) { Text("複製診斷資訊") }
+                    OutlinedButton(onClick = onShareDiagnostics, modifier = Modifier.weight(1f)) { Text("分享診斷資訊") }
                 }
             }
 

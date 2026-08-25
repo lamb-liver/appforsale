@@ -19,6 +19,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import io.sentry.Sentry
 
@@ -28,6 +29,8 @@ internal object SyncCloudKeys {
     const val REFRESH_TOKEN = "sync_refresh_token"
     const val USER_ID = "sync_user_id"
     const val TRANSFER_COMMIT_TOKEN = "sync_transfer_commit_token"
+    const val RECENT_REQUEST_IDS = "sync_recent_request_ids"
+    const val RECENT_ERROR_CODES = "sync_recent_error_codes"
 }
 
 internal data class SyncHttpResponse(val status: Int, val body: String)
@@ -93,6 +96,7 @@ internal class SyncEngine(
         if (rows.isEmpty()) return if (dao.pendingOutboxCount() > 0) SyncRunResult.RETRY else SyncRunResult.IDLE
 
         val requestId = UUID.randomUUID().toString()
+        rememberDiagnostic(SyncCloudKeys.RECENT_REQUEST_IDS, requestId)
         val body = JSONObject()
             .put("requestId", requestId)
             .put("deviceId", device.deviceId)
@@ -102,6 +106,7 @@ internal class SyncEngine(
         var response = try {
             transport.post("${baseUrl.trimEnd('/')}/v2/sync/batch", accessToken, body)
         } catch (error: IOException) {
+            rememberDiagnostic(SyncCloudKeys.RECENT_ERROR_CODES, "NETWORK")
             markTransient(rows, error.message ?: "network error")
             return SyncRunResult.RETRY
         }
@@ -109,6 +114,7 @@ internal class SyncEngine(
             val refreshed = try {
                 refreshAccessToken()
             } catch (blocked: CloudLifecycleException) {
+                rememberDiagnostic(SyncCloudKeys.RECENT_ERROR_CODES, blocked.code)
                 database.withTransaction {
                     rows.forEach { dao.markOutboxBlocked(it.operationId, blocked.code, blocked.message, nowMillis()) }
                 }
@@ -118,6 +124,7 @@ internal class SyncEngine(
                 response = try {
                     transport.post("${baseUrl.trimEnd('/')}/v2/sync/batch", refreshed, body)
                 } catch (error: IOException) {
+                    rememberDiagnostic(SyncCloudKeys.RECENT_ERROR_CODES, "NETWORK")
                     markTransient(rows, error.message ?: "network error")
                     return SyncRunResult.RETRY
                 }
@@ -125,12 +132,14 @@ internal class SyncEngine(
         }
         if (response.status == 401 || response.status == 408 || response.status == 429 ||
             response.status in 300..399 || response.status >= 500) {
+            rememberDiagnostic(SyncCloudKeys.RECENT_ERROR_CODES, "HTTP_${response.status}")
             markTransient(rows, "HTTP ${response.status}")
             return SyncRunResult.RETRY
         }
         if (response.status !in 200..299) {
             val code = response.errorCode().takeIf { it in BLOCKED_CODES } ?: "INVALID_DATA"
             val message = response.errorMessage() ?: "HTTP ${response.status}"
+            rememberDiagnostic(SyncCloudKeys.RECENT_ERROR_CODES, code)
             database.withTransaction {
                 rows.forEach { dao.markOutboxBlocked(it.operationId, code, message, nowMillis()) }
             }
@@ -139,6 +148,7 @@ internal class SyncEngine(
 
         val results = runCatching { parseResults(response.body, requestId, rows.map { it.operationId }.toSet()) }
             .getOrElse {
+                rememberDiagnostic(SyncCloudKeys.RECENT_ERROR_CODES, "INVALID_RESPONSE")
                 markTransient(rows, "invalid sync response")
                 return SyncRunResult.RETRY
             }
@@ -159,6 +169,7 @@ internal class SyncEngine(
                     "BLOCKED" -> {
                         blocked = true
                         val code = result.code?.takeIf { it in BLOCKED_CODES } ?: "INVALID_DATA"
+                        rememberDiagnostic(SyncCloudKeys.RECENT_ERROR_CODES, code)
                         dao.markOutboxBlocked(operationId, code, result.message, now)
                     }
                 }
@@ -178,6 +189,15 @@ internal class SyncEngine(
                 dao.markOutboxPending(listOf(row.operationId), message, nextAttempt(now, row.attemptCount), now)
             }
         }
+    }
+
+    private suspend fun rememberDiagnostic(key: String, value: String) {
+        val previous = runCatching {
+            val rows = JSONArray(dao.cloudValue(key) ?: "[]")
+            List(rows.length()) { rows.getString(it) }
+        }.getOrDefault(emptyList())
+        val values = listOf(value) + previous.filterNot { it == value }.take(4)
+        dao.putCloudState(listOf(CloudStateEntity(key, JSONArray(values).toString())))
     }
 
     private fun nextAttempt(now: Long, attemptCount: Int): Long {

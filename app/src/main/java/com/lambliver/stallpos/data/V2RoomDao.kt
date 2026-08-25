@@ -171,6 +171,9 @@ internal interface V2RoomDao {
     @Query("SELECT COUNT(*) FROM sync_outbox WHERE status = 'PENDING'")
     suspend fun pendingOutboxCount(): Int
 
+    @Query("SELECT MAX(synced_at_millis) FROM sync_outbox")
+    suspend fun lastSyncedAtMillis(): Long?
+
     @Query("SELECT * FROM sync_outbox ORDER BY created_at_millis, operation_id")
     suspend fun outboxRows(): List<SyncOutboxEntity>
 
