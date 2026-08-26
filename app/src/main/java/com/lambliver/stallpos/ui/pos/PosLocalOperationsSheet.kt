@@ -15,14 +15,23 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lambliver.stallpos.domain.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 internal fun SyncUiState.displayText(): String = when (status) {
-    SyncUiStatus.LOCAL_ONLY -> "僅本機"
-    SyncUiStatus.LOADING -> "正在確認同步狀態…"
-    SyncUiStatus.SYNCED -> "已同步"
+    SyncUiStatus.LOCAL_ONLY -> "本機模式（未啟用雲端同步）"
+    SyncUiStatus.LOADING -> "正在確認雲端同步狀態…"
+    SyncUiStatus.SYNCED -> if (lastSyncedAtMillis == null) "已啟用，尚未完成第一次同步" else "已同步"
     SyncUiStatus.PENDING -> "$pendingCount 筆待同步"
     SyncUiStatus.BLOCKED -> "$blockedCount 筆需要處理"
-    SyncUiStatus.ERROR -> message ?: "同步失敗"
+    SyncUiStatus.ERROR -> message ?: "同步暫時失敗，將自動重試"
+}
+
+internal fun SyncUiState.lastSyncText(): String? = when {
+    status == SyncUiStatus.LOCAL_ONLY || status == SyncUiStatus.LOADING -> null
+    lastSyncedAtMillis != null -> "最後成功同步：${SimpleDateFormat("M/d HH:mm", Locale.getDefault()).format(Date(lastSyncedAtMillis))}"
+    else -> "尚未有成功同步紀錄"
 }
 
 private enum class InventoryUiAction(val label: String) {
@@ -66,17 +75,19 @@ internal fun LocalOperationsBottomSheet(
         ) {
             item {
                 Text("活動與庫存", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text("雲端同步", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
                     uiState.sync.displayText(),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                uiState.sync.lastSyncText()?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 OutlinedButton(
                     onClick = onGoogleSignIn,
                     enabled = cloudLoginConfigured,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) {
-                    Text(if (cloudLoginConfigured) "使用 Google 登入雲端" else "雲端登入尚未設定")
+                    Text(if (cloudLoginConfigured) "使用 Google 啟用雲端同步" else "雲端同步尚未設定")
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onCopyDiagnostics, modifier = Modifier.weight(1f)) { Text("複製診斷資訊") }

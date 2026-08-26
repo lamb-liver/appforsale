@@ -174,6 +174,9 @@ internal interface V2RoomDao {
     @Query("SELECT MAX(synced_at_millis) FROM sync_outbox")
     suspend fun lastSyncedAtMillis(): Long?
 
+    @Query("SELECT MAX(synced_at_millis) FROM sync_outbox")
+    fun observeLastSyncedAtMillis(): Flow<Long?>
+
     @Query("SELECT * FROM sync_outbox ORDER BY created_at_millis, operation_id")
     suspend fun outboxRows(): List<SyncOutboxEntity>
 

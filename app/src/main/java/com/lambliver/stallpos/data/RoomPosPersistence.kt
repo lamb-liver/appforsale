@@ -50,16 +50,22 @@ internal class RoomPosPersistence(
     override val syncStateFlow: Flow<SyncUiState> = combine(
         v2Dao.observeOutboxCounts(),
         v2Dao.observeCloudValue(SyncCloudKeys.ACCESS_TOKEN),
-    ) { counts, accessToken ->
+        v2Dao.observeLastSyncedAtMillis(),
+    ) { counts, accessToken, lastSyncedAtMillis ->
         when {
             accessToken == null -> SyncUiState.LocalOnly
             counts.blockedCount > 0 -> SyncUiState(
                 SyncUiStatus.BLOCKED,
                 pendingCount = counts.pendingCount,
                 blockedCount = counts.blockedCount,
+                lastSyncedAtMillis = lastSyncedAtMillis,
             )
-            counts.pendingCount > 0 -> SyncUiState(SyncUiStatus.PENDING, pendingCount = counts.pendingCount)
-            else -> SyncUiState(SyncUiStatus.SYNCED)
+            counts.pendingCount > 0 -> SyncUiState(
+                SyncUiStatus.PENDING,
+                pendingCount = counts.pendingCount,
+                lastSyncedAtMillis = lastSyncedAtMillis,
+            )
+            else -> SyncUiState(SyncUiStatus.SYNCED, lastSyncedAtMillis = lastSyncedAtMillis)
         }
     }
 

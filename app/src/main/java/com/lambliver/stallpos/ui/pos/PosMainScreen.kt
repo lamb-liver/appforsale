@@ -83,10 +83,23 @@ internal fun PosMainScreen(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
+                        text = "雲端同步",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
                         text = uiState.sync.displayText(),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    uiState.sync.lastSyncText()?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             Row(
@@ -172,14 +185,14 @@ internal fun PosMainScreen(
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("備份資料") },
+                            text = { Text("匯出本機備份檔") },
                             onClick = {
                                 onSettingsMenuExpandedChange(false)
                                 onUiEvent(PosUiEvent.RequestBackupJson)
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("還原資料") },
+                            text = { Text("從本機備份還原") },
                             onClick = {
                                 onSettingsMenuExpandedChange(false)
                                 onUiEvent(PosUiEvent.RequestRestoreJson)

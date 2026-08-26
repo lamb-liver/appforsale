@@ -58,8 +58,10 @@ captures/
 # Compose compiler reports (local diagnostics)
 **/compose_reports/
 
-# Cursor / local AI (optional — keep .cursorrules if you want team norms in repo)
-.cursor/
+# Cursor / local AI (keep committed always-on rules)
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # Env-style secrets (if you add scripts later)
 .env

@@ -19,6 +19,12 @@
 ### 目錄
 攤面上可點選之**商品**、**套組**、分類資料之總覽。**目錄**變更不必然代表已發生收款。
 
+### 活動（Event）
+一次市集、同人展或快閃檔期。生命週期為計畫中／進行中／已結束。同一時間最多一個進行中活動。活動代碼與時區在第一筆銷貨後不可改。
+
+### GENERAL／EVENT 庫存
+可追蹤庫存的商品分兩個位置：**GENERAL**（攤位總倉）與 **EVENT**（該活動現場）。活動進行中，結帳扣現場庫存；無進行中活動則扣總倉。調撥、損壞、盤點、活動結束退回都是庫存移動，剩餘量由移動紀錄派生。
+
 ### 應收款（此筆交易客人應付）
 結帳當下，折讓／加價與購物車目錄小計合成後的金額，作為確認收款動作的依據。程式內可能存在多種 `total` 命名——彼此語意不全相同；對帳時以對照文件為準。
 
@@ -38,43 +44,35 @@
 相對於**購物車**目錄小計的調整項（例如自訂加價、折扣折算後）。最終仍以**應收款**對外。
 
 ### 結帳
-收款動作確認的時間點：以使用者確認時鎖定的記憶體購物車快照為準，並在同一個 Room write transaction 內讀取最新 Catalog／庫存、寫入**銷貨紀錄**與名稱快照、扣庫存、清除 Room 購物車並更新 LastCheckout。任一步失敗即全部 rollback；不得改讀可能仍在 debounce 的 Room 購物車取代確認快照。
+收款動作確認的時間點：以使用者確認時鎖定的記憶體購物車快照為準，並在同一個寫入交易內讀取最新目錄／庫存、寫入**銷貨紀錄**與名稱快照、扣庫存、清除購物車並更新上一筆結帳。任一步失敗即全部撤回；不得改讀可能仍在延遲寫入中的購物車取代確認快照。
 
 ### 銷貨紀錄（Sale）
-每次**結帳**成功追加的一則不可變紀錄，使用永久 UUID 識別。`SaleRecord.total` 是不含小費的應收款；有效營收需計入 `total + tipAmount`。Sales audit log 不修改、不刪除。
+每次**結帳**成功追加的一則不可變紀錄，使用永久 UUID 識別。`SaleRecord.total` 是不含小費的應收款；有效營收需計入 `total + tipAmount`。銷貨稽核紀錄不修改、不刪除。
 
-### 復原紀錄（Reversal）
-復原上一筆結帳時追加的不可變紀錄，使用自己的 UUID 並以 `saleId` 指向原 Sale。復原不移除或改寫 Sale；同一 Sale 最多一筆 Reversal。
+### 復原（VOID）
+復原上一筆結帳時保留原 Sale，並追加一筆不可變復原紀錄（雲端契約稱 VOID）。同一 Sale 最多一次。庫存依移動紀錄回補。重送只生效一次。
 
 ### 報表真相源
-`Sales + Reversals` 是 dashboard、CSV 與 reports 的唯一真相源。`activeSales` 排除已被 Reversal 指向的 Sale；有效筆數為其筆數，有效營收為 `sum(total + tipAmount)`。Room 以 SQL 產生 aggregate，並與 Kotlin 明細結果對帳；舊 DataStore `total_sales`／`tx_count` 只屬於 post-migration retirement payload。
+有效銷貨（Sale 減去已復原／VOID）是現場儀表、CSV 與雲端報表的唯一真相源。有效筆數為其筆數，有效營收為 `sum(total + tipAmount)`。
 
 ### 上一筆結帳（可用於復原）
-Room `last_checkout` 僅保存 slot 1 與 `sale_id`。復原資格驗證、庫存／購物車恢復、Reversal append 與 LastCheckout clear 必須在同一個 write transaction 內完成；孤兒或已復原 saleId 一律 no-op。
+只記住目前可復原的那一筆。復原資格、庫存／購物車恢復、復原紀錄追加與槽位清除必須在同一個寫入交易內完成；孤兒或已復原的交易一律略過。
 
 ### 本機持久化
-Business data 以 Room DB `stallpos.db` version 1 儲存，使用 SQLite 2.7.0 `BundledSQLiteDriver`。`PosPersistence` 仍是 ViewModel 唯一 seam；Compose 不接觸 Entity／DAO。DataStore 只持續寫 UI preferences；`legacy_import_version=3` 後的 business JSON 只可經嚴格驗證後整批清除，或在不安全時完整保留，不得重新匯入或覆寫 Room。
+裝置端業務資料是 runtime 唯一真相源。跨安裝搬遷只走 StallPOS JSON。Android 系統備份與裝置對拷不是還原路徑。
 
-### 備份所有權
-Room DB 是 runtime business storage；DataStore 是 UI preferences；StallPOS JSON 是唯一正式跨安裝 business-data 搬遷格式。Android Auto Backup 與 D2D 不支援，也不得成為第二條資料還原路徑。
+### 雲端同步與換機
+Google 登入後，離線交易先完成再經 Outbox 同步。雲端是副本，不是第二個結帳真相源。換機走 transfer／claim／commit；強制登入會退役舊裝置。帳號與營運資料只由使用者主動 Cloud Delete／Account Delete 移除，不因未活動自動刪。
 
 ### 營運摘要（今日）
 聚合當日與總和的營運數字，僅為攤販現場自省用，非雲端報表。
 
-### 備份檔版本（`schemaVersion` vs `payloadSchema`）
-
-完整備份為 JSON **Envelope** + **`payload`** 物件（見 `PosStore.exportFullBackupJson`）。
-
-| 欄位 | 層級 | 職責 |
-|------|------|------|
-| **`schemaVersion`** | Envelope（根物件） | 控制 `parseBackupEnvelope` 是否接受、以及還原時執行哪些 **遷移步驟**（`BackupMigration.migrateV1ToV2` …）。App 支援上限為 `PosStore.BACKUP_SCHEMA_VERSION`。 |
-| **`payloadSchema`** | Payload 內 | 標記業務資料束形狀；v4 新增 checkout line `displayName` 快照。 |
-
-匯出時兩者現行同為 `4`。舊版 `schemaVersion: 1／2／3` 會依序遷移。Local DataStore 先以 custom `DataMigration<Preferences>` 完成 transaction schema 2→3，再於單一 Room transaction 匯入並寫入 `legacy_import_version=3`；失敗會 rollback 且下次啟動重試。之後的 legacy retirement 不是 migration，且永遠不得改寫 Room。v3→v4 只用同一 backup Catalog 回填可證明的名稱，不猜測遺失資料。
+備份 envelope 版本與 Room schema 屬實作契約，見 README 與 [room-schema.md](room-schema.md)，不在本 glossary 重複。
 
 ## Relationships
 
 - **目錄**由多個 **商品**、多個 **套組**（與各自的 **商品分類**／套組分類）組成。
 - **購物車**引用既有的 **商品** 與 **套組**；調整數量時必須尊重庫存與套組相互排擠規則。
-- 一次 **結帳** 產生一筆 **Sale**，並維護 **上一筆結帳（可用於復原）**；復原時保留 Sale 並追加 **Reversal**。
+- **活動**可自 **GENERAL** 調撥庫存到 **EVENT**；活動結束將剩餘現場庫存退回 GENERAL。
+- 一次 **結帳** 產生一筆 **Sale**，並維護 **上一筆結帳（可用於復原）**；復原時保留 Sale 並追加 **VOID**。
 - **應收款**由 **購物車**之目錄小計再加上 **加價／折讓淨調整**派生並加以驗證。

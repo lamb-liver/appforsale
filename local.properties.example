@@ -4,8 +4,9 @@
 # Android SDK — required for Gradle / Android Studio
 sdk.dir=/path/to/Android/sdk
 
-# StallPOS v2 cloud (optional before the internal M8 release gate)
-# syncBaseUrl=https://your-worker.example.workers.dev
+# StallPOS v2 cloud (optional; POS checkout works fully offline without these)
+# Production Worker: https://stallpos-v2.shiro02160420.workers.dev
+# syncBaseUrl=https://stallpos-v2.shiro02160420.workers.dev
 # googleServerClientId=000000000000-example.apps.googleusercontent.com
 # sentryDsn=https://public@example.ingest.sentry.io/project
 # CI equivalents: STALLPOS_SYNC_BASE_URL, STALLPOS_GOOGLE_SERVER_CLIENT_ID,

@@ -198,6 +198,7 @@ data class SyncUiState(
     val pendingCount: Int = 0,
     val blockedCount: Int = 0,
     val message: String? = null,
+    val lastSyncedAtMillis: Long? = null,
 ) {
     companion object {
         val LocalOnly = SyncUiState(SyncUiStatus.LOCAL_ONLY)

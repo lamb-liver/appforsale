@@ -1,26 +1,27 @@
-# Room DB v1 schema
+# Room schema
 
-Database: `stallpos.db` · version: `1` · exported schema: `app/schemas/com.lambliver.stallpos.data.StallPosDatabase/1.json`
+現行 runtime：加密 `stallpos.db` · **version 2** · `app/schemas/com.lambliver.stallpos.data.StallPosV2Database/2.json`
 
-| Table | Key / ordering | Purpose |
-|---|---|---|
-| `categories` | `id`, `sort_order` | 商品分類 |
-| `products` | `id`, `sort_order` | 商品、價格與 nullable stock |
-| `bundle_categories` | `id`, `sort_order` | 套組分類 |
-| `bundles` | `id`, `sort_order` | 套組定義 |
-| `bundle_components` | (`bundle_id`, `component_index`) | 成分順序；允許同商品重複多行 |
-| `cart_items` | (`item_type`, `item_id`) | 進行中購物車 |
-| `sales` | UUID `id`, unique `audit_order` | Append-only Sale header |
-| `sale_lines` | (`sale_id`, `line_index`) | Cart / checkout line 與 nullable 名稱快照 |
-| `sale_stock_deductions` | (`sale_id`, `product_id`) | Undo 所需的實際扣庫量 |
-| `reversals` | UUID `id`, unique `sale_id`, `audit_order` | Append-only Undo audit |
-| `last_checkout` | fixed `slot = 1`, unique `sale_id` | 目前可復原交易 |
-| `app_meta` | `key` | Legacy import marker 與 post-migration cleanup state；不承載 business records |
+v1 明文 schema 僅供升級：`app/schemas/com.lambliver.stallpos.data.StallPosDatabase/1.json`。v1→v2 為驗證後原子替換，禁止 destructive fallback。
+
+## v2 tables
+
+| Table | Purpose |
+|---|---|
+| `categories` / `products` / `bundle_categories` / `bundles` / `bundle_components` | 目錄 |
+| `cart_items` | 進行中購物車 |
+| `sales` / `sale_lines` / `sale_stock_deductions` | Append-only 銷貨 |
+| `reversals` / `last_checkout` | 復原（VOID）稽核與可復原槽 |
+| `events` | 活動生命週期 |
+| `inventory_levels` / `inventory_movements` | GENERAL／EVENT 庫存真相 |
+| `sale_line_snapshots` / `bundle_component_allocations` | 交易當下名稱／分攤快照 |
+| `*_v2_meta` | 雲端同步 metadata |
+| `sync_outbox` / `cloud_state` / `device_state` | Outbox 與帳號／裝置 |
+| `app_meta` | legacy import marker；不承載業務列 |
 
 ## Invariants
 
-- Sale、SaleLine、stock deduction 與 Reversal runtime 沒有 delete API；audit FK 使用 `NO ACTION`。
-- Reversal `sale_id` 唯一，同一 Sale 最多復原一次。
-- 有效 aggregate 是 Sales 排除 Reversals，revenue 為 `SUM(total + tip_amount)`。
-- 所有 list 以 `sort_order`、`component_index`、`line_index` 或 `audit_order` 明確排序。
-- Room migration 禁止 destructive fallback。
+- Sale、庫存移動與 VOID 沒有 runtime delete；同一 Sale 最多一筆復原。
+- 有效營收是 Sales 排除 VOID，`SUM(total + tip_amount)`。
+- 庫存剩餘量由 `inventory_movements` 派生，不以獨立「改庫存」覆寫。
+- DataStore 只存 UI 偏好；業務 JSON 跨安裝格式見 README 備份版本（現行 envelope／payload **5**）。
