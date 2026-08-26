@@ -45,5 +45,6 @@ class AppVersionTest {
         assertNull(VersionChecker.latestTagFromReleaseJson("""{"tag_name":"v2.1.3","prerelease":true}"""))
         assertNull(VersionChecker.latestTagFromReleaseJson("""{"html":"<script>alert(1)</script>"}"""))
         assertNull(VersionChecker.latestTagFromReleaseJson("x".repeat(VersionChecker.MAX_BODY_BYTES + 1)))
+        assertNull(VersionChecker.latestTagFromReleaseJson("{"))
     }
 }

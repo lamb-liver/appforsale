@@ -54,15 +54,19 @@ async function readUtf8Capped(request: Request, maxBytes: number): Promise<strin
   return new TextDecoder().decode(bytes);
 }
 
+export const SECURITY_HEADERS = {
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "referrer-policy": "no-referrer",
+  "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+  "permissions-policy": "camera=(), microphone=(), geolocation=()",
+};
+
 export function json(data: unknown, status = 200, requestId?: string): Response {
   const headers = new Headers({
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
-    "x-frame-options": "DENY",
-    "referrer-policy": "no-referrer",
-    "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
-    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    ...SECURITY_HEADERS,
   });
   if (requestId) headers.set("x-request-id", requestId);
   return new Response(JSON.stringify(data), { status, headers });

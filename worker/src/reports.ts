@@ -1,4 +1,4 @@
-import { HttpError, json } from "./http";
+import { HttpError, json, SECURITY_HEADERS } from "./http";
 import { isUuid } from "./validation";
 
 const TRANSACTION_PAGE_SIZE = 50;
@@ -225,11 +225,11 @@ export async function handleEventTransactionsCsv(
   ctx.waitUntil(writeTransactionsCsv(writable, env.POS_DB, userId, event.id, query).catch((error) => {
     console.error(JSON.stringify({ event: "csv_export_failed", requestId, error: error instanceof Error ? error.message : String(error) }));
   }));
+  const fileToken = /^[A-Za-z0-9._-]{1,64}$/.test(event.code) ? event.code : event.id;
   return new Response(readable, { headers: {
     "content-type": "text/csv; charset=utf-8",
-    "content-disposition": `attachment; filename="stallpos-${event.code}-transactions.csv"`,
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
+    "content-disposition": `attachment; filename="stallpos-${fileToken}-transactions.csv"`,
+    ...SECURITY_HEADERS,
     "x-request-id": requestId,
   } });
 }
@@ -362,8 +362,9 @@ async function writeTransactionsCsv(
   }
 }
 
-function csvCell(value: unknown): string {
-  const text = String(value ?? "");
+export function csvCell(value: unknown): string {
+  let text = String(value ?? "");
+  if (/^[=+@\t\r]/.test(text) || /^-(?!\d)/.test(text)) text = `'${text}`;
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 

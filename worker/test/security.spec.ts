@@ -1,6 +1,7 @@
 import { createExecutionContext, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_JSON_BYTES } from "../src/http";
+import { csvCell } from "../src/reports";
 import worker from "../src/index";
 import { sha256 } from "../src/auth";
 import { resetPosDb } from "./db";
@@ -130,6 +131,49 @@ describe("local security attack surface", () => {
       headers: { cookie: "stallpos_dashboard=aaaaaaaaaaaaaaaaaaaa" },
     });
     expect(forgedCookie.status).toBe(401);
+  });
+
+  it("does not leak reports through CSV, path tricks, or extra HTTP methods", async () => {
+    expect((await fetchPath(`/v2/reports/events/${ownEventId}/transactions.csv`)).status).toBe(401);
+    expect((await fetchPath(`/v2/reports/events/${otherEventId}/transactions.csv`, {
+      headers: { cookie: `stallpos_dashboard=${dashboardToken}` },
+    })).status).toBe(404);
+
+    const ownCsv = await fetchPath(`/v2/reports/events/${ownEventId}/transactions.csv`, {
+      headers: { cookie: `stallpos_dashboard=${dashboardToken}` },
+    });
+    expect(ownCsv.status).toBe(200);
+    expect(ownCsv.headers.get("x-frame-options")).toBe("DENY");
+    expect(ownCsv.headers.get("content-disposition")).toMatch(/^attachment; filename="stallpos-SEC-transactions.csv"$/);
+
+    const nested = await fetchPath("/dashboard/../v2/reports/events");
+    expect(nested.status).toBe(401);
+
+    expect((await fetchPath("/health", { method: "PUT" })).status).toBe(404);
+    expect((await fetchPath("/v2/sync/batch", { method: "OPTIONS" })).headers.get("access-control-allow-origin")).toBeNull();
+    expect((await fetchPath("/v2/bootstrap?group=sales%20UNION%20SELECT%201")).status).toBe(401);
+    expect((await fetchPath("/v2/bootstrap?group=sales%20UNION%20SELECT%201", {
+      headers: { authorization: `Bearer ${token}` },
+    })).status).toBe(400);
+  });
+
+  it("neutralizes spreadsheet formulas in CSV cells", () => {
+    expect(csvCell("=1+1")).toBe("'=1+1");
+    expect(csvCell("+cmd")).toBe("'+cmd");
+    expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(csvCell("-cmd")).toBe("'-cmd");
+    expect(csvCell(-10)).toBe("-10");
+    expect(csvCell("徽章")).toBe("徽章");
+    expect(csvCell('say "hi"')).toBe('"say ""hi"""');
+  });
+
+  it("rejects garbage transfer claims and does not create sessions", async () => {
+    const claimed = await fetchPath("/v2/devices/transfer/claim", {
+      method: "POST",
+      json: { transferToken: "a".repeat(32), deviceId: "20000000-0000-4000-8000-000000000099", deviceName: "Stolen" },
+    });
+    expect(claimed.status).toBe(409);
+    expect(await env.POS_DB.prepare("SELECT COUNT(*) AS count FROM sessions").first("count")).toBe(1);
   });
 });
 
