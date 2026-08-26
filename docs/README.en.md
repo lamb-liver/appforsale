@@ -1,6 +1,6 @@
 # Stall POS · Market Checkout
 
-**Version: v2.1.1** (`VERSION` · `versionName`)
+**Version: v2.1.2** (`VERSION` · `versionName`)
 
 An **offline-first Android market POS** with quick checkout, event inventory, cloud backup/device recovery, and a read-only event dashboard.
 
@@ -67,7 +67,8 @@ stallpos/
 ├── RELEASE_CERT_SHA256  # Public APK signing certificate fingerprint
 ├── VERSION              # Single source for app version (synced to versionName)
 ├── local.properties.example
-└── .cursorrules         # Subtraction design, high-contrast outdoor UI
+├── AGENTS.md            # Default coding principle (Ponytail) and repo constraints
+└── .cursorrules         # Subtraction design, outdoor UI (short; ladder lives in AGENTS.md)
 ```
 
 #### Layers and a single persistence seam
@@ -126,7 +127,7 @@ v2.1.1 release gate (2026-08-26): Android unit, lint, API 35 instrumented, produ
 | StallPOS JSON | Only supported cross-install business-data transfer format |
 | Android Auto Backup / D2D | Unsupported and excluded by the manifest and backup rules |
 
-**Production**: [download StallPOS v2.1.1 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.1/StallPOS-2.1.1.apk) · [open the read-only Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
+**Production**: [download StallPOS v2.1.2 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.2/StallPOS-2.1.2.apk) · [open the read-only Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
 
 ---
 
@@ -225,4 +226,4 @@ git status --ignored | head -20
 
 ### License
 
-No license file is bundled yet; all rights reserved by default. Add a `LICENSE` if you open-source this project.
+[MIT](../LICENSE). Copyright (c) 2026 羊肝.

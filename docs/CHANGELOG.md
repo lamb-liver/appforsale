@@ -2,6 +2,17 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [2.1.2] - 2026-08-26
+
+### Changed
+
+- Android 主畫面與活動庫存顯示最後成功同步時間，並釐清本機／待同步／已同步文案
+
+### Documentation
+
+- 領域 glossary 與 Room schema 對齊 v2；README 標示 MIT
+- Ponytail 設為預設寫碼原則（`AGENTS.md`）
+
 ## [2.1.1] - 2026-08-26
 
 ### Fixed
@@ -153,6 +164,7 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[2.1.2]: https://github.com/lamb-liver/appforsale/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/lamb-liver/appforsale/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/lamb-liver/appforsale/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/lamb-liver/appforsale/compare/v1.5.0...v2.0.0
