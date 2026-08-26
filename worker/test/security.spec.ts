@@ -9,10 +9,16 @@ import { resetPosDb } from "./db";
 const userId = "11000000-0000-4000-8000-000000000001";
 const otherUserId = "11000000-0000-4000-8000-000000000099";
 const deviceId = "20000000-0000-4000-8000-000000000001";
+const otherDeviceId = "20000000-0000-4000-8000-000000000099";
 const token = "test-access-token";
+const otherToken = "other-access-token";
 const dashboardToken = "dashboard-test-session-token";
+const otherDashboardToken = "other-dashboard-session-token";
+const expiredToken = "expired-access-token";
 const ownEventId = "70000000-0000-4000-8000-000000000001";
 const otherEventId = "70000000-0000-4000-8000-000000000099";
+const ownSaleId = "90000000-0000-4000-8000-000000000001";
+const otherSaleId = "90000000-0000-4000-8000-000000000099";
 
 beforeEach(async () => {
   await resetPosDb(env.POS_DB);
@@ -28,15 +34,33 @@ beforeEach(async () => {
        VALUES (?, ?, 'A', 'Test', 'ACTIVE', 1, '2026-08-24T00:00:00Z', '2026-08-24T00:00:00Z')`,
     ).bind(deviceId, userId),
     env.POS_DB.prepare(
+      `INSERT INTO devices (id, user_id, short_code, name, status, cloud_epoch, registered_at_utc, last_seen_at_utc)
+       VALUES (?, ?, 'B', 'Other', 'ACTIVE', 1, '2026-08-24T00:00:00Z', '2026-08-24T00:00:00Z')`,
+    ).bind(otherDeviceId, otherUserId),
+    env.POS_DB.prepare(
       `INSERT INTO sessions (token_hash, user_id, device_id, created_at_utc, expires_at_utc)
        VALUES (?, ?, ?, '2026-08-24T00:00:00Z', '2099-01-01T00:00:00Z')`,
     ).bind(await sha256(token), userId, deviceId),
     env.POS_DB.prepare(
+      `INSERT INTO sessions (token_hash, user_id, device_id, created_at_utc, expires_at_utc)
+       VALUES (?, ?, ?, '2026-08-24T00:00:00Z', '2099-01-01T00:00:00Z')`,
+    ).bind(await sha256(otherToken), otherUserId, otherDeviceId),
+    env.POS_DB.prepare(
+      `INSERT INTO sessions (token_hash, user_id, device_id, created_at_utc, expires_at_utc)
+       VALUES (?, ?, ?, '2026-08-24T00:00:00Z', '2020-01-01T00:00:00Z')`,
+    ).bind(await sha256(expiredToken), userId, deviceId),
+    env.POS_DB.prepare(
       `INSERT INTO dashboard_sessions (token_hash, user_id, created_at_utc, expires_at_utc)
        VALUES (?, ?, '2026-08-24T00:00:00Z', '2099-01-01T00:00:00Z')`,
     ).bind(await sha256(dashboardToken), userId),
+    env.POS_DB.prepare(
+      `INSERT INTO dashboard_sessions (token_hash, user_id, created_at_utc, expires_at_utc)
+       VALUES (?, ?, '2026-08-24T00:00:00Z', '2099-01-01T00:00:00Z')`,
+    ).bind(await sha256(otherDashboardToken), otherUserId),
     event(userId, ownEventId, "自己的市集"),
     event(otherUserId, otherEventId, "別人的市集"),
+    sale(userId, ownSaleId, ownEventId),
+    sale(otherUserId, otherSaleId, otherEventId),
   ]);
 });
 
@@ -167,13 +191,85 @@ describe("local security attack surface", () => {
     expect(csvCell('say "hi"')).toBe('"say ""hi"""');
   });
 
+  it("rejects expired, empty, and confused credentials", async () => {
+    expect((await fetchPath("/v2/bootstrap?group=PRODUCTS", {
+      headers: { authorization: `Bearer ${expiredToken}` },
+    })).status).toBe(401);
+    expect((await fetchPath("/v2/bootstrap?group=PRODUCTS", {
+      headers: { authorization: "Bearer " },
+    })).status).toBe(401);
+    expect((await fetchPath("/v2/bootstrap?group=PRODUCTS", {
+      headers: { authorization: token },
+    })).status).toBe(401);
+    expect((await fetchPath("/v2/reports/events", {
+      headers: { authorization: `Bearer ${token}` },
+    })).status).toBe(401);
+    expect((await fetchPath("/v2/bootstrap?group=PRODUCTS", {
+      headers: { cookie: `stallpos_dashboard=${dashboardToken}` },
+    })).status).toBe(401);
+  });
+
+  it("does not honor mass-assigned admin/role fields or cross-user ids in bodies", async () => {
+    const google = await fetchPath("/v2/auth/google", {
+      method: "POST",
+      json: {
+        idToken: "x",
+        deviceId,
+        deviceName: "Pixel",
+        role: "admin",
+        userId: otherUserId,
+      },
+    });
+    expect(google.status).toBe(400);
+
+    const dashboard = await fetchPath("/v2/auth/dashboard", {
+      method: "POST",
+      json: { idToken: "x", admin: true, userId },
+    });
+    expect(dashboard.status).toBe(400);
+
+    const sync = await fetchPath("/v2/sync/batch", {
+      method: "POST",
+      json: { requestId: "10000000-0000-4000-8000-000000000001", deviceId: otherDeviceId, cloudEpoch: 1, operations: [] },
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(sync.status).toBe(400);
+  });
+
+  it("account B cannot read account A's event or sale", async () => {
+    const list = await fetchPath("/v2/reports/events", {
+      headers: { cookie: `stallpos_dashboard=${otherDashboardToken}` },
+    });
+    expect(list.status).toBe(200);
+    const events = (await list.json() as { events: Array<{ id: string }> }).events.map((row) => row.id);
+    expect(events).toContain(otherEventId);
+    expect(events).not.toContain(ownEventId);
+
+    expect((await fetchPath(`/v2/reports/events/${ownEventId}`, {
+      headers: { cookie: `stallpos_dashboard=${otherDashboardToken}` },
+    })).status).toBe(404);
+    expect((await fetchPath(`/v2/reports/events/${ownEventId}/transactions/${ownSaleId}`, {
+      headers: { cookie: `stallpos_dashboard=${otherDashboardToken}` },
+    })).status).toBe(404);
+  });
+
+  it("account B deleting cloud data does not remove account A", async () => {
+    expect((await fetchPath("/v2/account", {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${otherToken}` },
+    })).status).toBe(200);
+    expect(await env.POS_DB.prepare("SELECT id FROM users WHERE id=?").bind(userId).first("id")).toBe(userId);
+  });
+
   it("rejects garbage transfer claims and does not create sessions", async () => {
     const claimed = await fetchPath("/v2/devices/transfer/claim", {
       method: "POST",
       json: { transferToken: "a".repeat(32), deviceId: "20000000-0000-4000-8000-000000000099", deviceName: "Stolen" },
     });
     expect(claimed.status).toBe(409);
-    expect(await env.POS_DB.prepare("SELECT COUNT(*) AS count FROM sessions").first("count")).toBe(1);
+    expect(await env.POS_DB.prepare("SELECT COUNT(*) AS count FROM sessions").first("count")).toBe(3);
+    expect(await env.POS_DB.prepare("SELECT COUNT(*) AS count FROM sessions WHERE device_id=?")
+      .bind("20000000-0000-4000-8000-000000000099").first("count")).toBe(1);
   });
 });
 
@@ -182,6 +278,14 @@ function event(owner: string, id: string, name: string) {
     `INSERT INTO events (user_id,id,name,code,event_type,start_at_utc,end_at_utc,timezone,location,status,updated_at_utc,payload_json)
      VALUES (?,?,?,'SEC','MARKET','2026-08-24T00:00:00Z','2026-08-25T00:00:00Z','Asia/Taipei','台北','CLOSED','2026-08-25T00:00:00Z','{}')`,
   ).bind(owner, id, name);
+}
+
+function sale(owner: string, id: string, eventId: string) {
+  return env.POS_DB.prepare(
+    `INSERT INTO sales
+     (user_id,id,device_id,event_id,receipt_number,occurred_at_utc,subtotal,discount_amount,net_adjustment,final_total,tip_amount,payment_method,payload_json)
+     VALUES (?,?,'device',?,?, '2026-08-24T01:00:00Z',100,0,0,100,0,'CASH','{}')`,
+  ).bind(owner, id, eventId, id);
 }
 
 function expectSecurityHeaders(response: Response) {
