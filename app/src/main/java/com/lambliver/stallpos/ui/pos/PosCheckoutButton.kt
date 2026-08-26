@@ -18,7 +18,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -50,11 +49,15 @@ internal fun PosCheckoutButton(
         animationSpec = tween(durationMillis = 80),
         label = "checkoutButtonPress",
     )
-    val backgroundColor = lerp(PosCheckoutOrange, PosCheckoutOrange.darken(0.1f), pressProgress)
+    val backgroundColor = if (enabled) {
+        lerp(PosCheckoutOrange, PosCheckoutOrange.darken(0.1f), pressProgress)
+    } else {
+        Color(0xFF2A2B32)
+    }
+    val labelColor = if (enabled) Color.White else Color(0xFFB4B8C0)
 
     Box(
         modifier = modifier
-            .alpha(if (enabled) 1f else 0.3f)
             .scale(scale)
             .height(60.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -75,13 +78,13 @@ internal fun PosCheckoutButton(
                 text = "結帳",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = labelColor,
             )
             if (enabled) {
                 Text(
                     text = "${"%,d".format(displayAmount)} · $itemCount 件",
                     fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.8f),
+                    color = Color.White.copy(alpha = 0.88f),
                 )
             }
         }

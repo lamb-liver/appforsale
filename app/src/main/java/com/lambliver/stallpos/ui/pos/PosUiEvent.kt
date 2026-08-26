@@ -12,6 +12,7 @@ sealed interface PosUiEvent {
     data object ShowDashboardSheet : PosUiEvent
     data object ShowLocalOperationsSheet : PosUiEvent
     data object ShowSponsorSheet : PosUiEvent
+    data object ShowSettingsSheet : PosUiEvent
     data object RequestExportCsv : PosUiEvent
     data object RequestBackupJson : PosUiEvent
     data object RequestRestoreJson : PosUiEvent

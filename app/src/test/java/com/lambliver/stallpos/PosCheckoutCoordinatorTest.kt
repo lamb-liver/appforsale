@@ -64,7 +64,7 @@ class PosCheckoutCoordinatorTest {
             tipAmountRaw = 0L,
         )
         val msg = r as PosCheckoutCoordinator.PrepareResult.UserMessage
-        assertTrue(msg.message.contains("成分異常"))
+        assertTrue(msg.message.contains("內容有問題"))
     }
 
     @Test

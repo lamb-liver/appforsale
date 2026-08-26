@@ -31,9 +31,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.lambliver.stallpos.domain.DocumentTarget
 import com.lambliver.stallpos.domain.PosEvent
+import com.lambliver.stallpos.ui.DeveloperContact
 import com.lambliver.stallpos.ui.OnboardingTour
 import com.lambliver.stallpos.ui.PosViewModel
 import com.lambliver.stallpos.ui.TourStep
+import com.lambliver.stallpos.ui.reportToDeveloperIntent
 import com.lambliver.stallpos.ui.feedback.PosFeedbackManager
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
@@ -47,10 +49,7 @@ internal fun PosAppShell(
     snackbarHostState: SnackbarHostState,
     overlay: PosOverlayState,
     feedback: PosFeedbackManager,
-    hapticEnabled: Boolean,
-    soundEnabled: Boolean,
-    onHapticEnabledChange: (Boolean) -> Unit,
-    onSoundEnabledChange: (Boolean) -> Unit,
+    backupReminderVisible: Boolean,
     cloudLoginConfigured: Boolean,
     onGoogleSignIn: () -> Unit,
 ) {
@@ -71,10 +70,10 @@ internal fun PosAppShell(
 
     val tourSteps = listOf(
         TourStep("新增商品", "點右上角齒輪 →「新增商品」，輸入名稱與價格即可完成", tourBounds.fab.value),
-        TourStep("快選商品", "點擊加入購物車；長按可編輯、調整庫存或刪除；可設定追蹤庫存與商品分類", tourBounds.productRow.value),
-        TourStep("套用折扣", "點畫面下方「%」開啟折扣；可選快捷或自訂百分比／金額", tourBounds.discountBtn.value),
-        TourStep("自訂金額", "點畫面下方「自訂金額」列開啟鍵盤；可單獨結帳或搭配快選合計", tourBounds.numpad.value),
-        TourStep("儀表與匯出", "右側可看今日營收明細；齒輪可新增商品、管活動庫存、備份；檔案圖示匯出 CSV", tourBounds.statsRow.value),
+        TourStep("快選商品", "點一下加入購物車；長按可改商品、調庫存或刪除", tourBounds.productRow.value),
+        TourStep("套用折扣", "點下方「%」開折扣，可選比例或金額", tourBounds.discountBtn.value),
+        TourStep("自訂金額", "點下方「自訂金額」開鍵盤，可單獨結帳或跟快選一起算", tourBounds.numpad.value),
+        TourStep("今日明細", "右側看今天賣了什麼；齒輪可新增商品、管庫存、備份", tourBounds.statsRow.value),
     )
 
     var catalogTab by rememberSaveable { mutableStateOf(CatalogTab.Products) }
@@ -90,7 +89,7 @@ internal fun PosAppShell(
             scope.launch { overlay.checkoutSheetState.hide() }
             numpadExpanded = false
             val result = snackbarHostState.showSnackbar(
-                message = "結帳成功",
+                message = vm.uiState.value.sync.checkoutFollowUpText() ?: "結帳成功",
                 actionLabel = "作廢",
                 duration = SnackbarDuration.Short,
             )
@@ -151,19 +150,25 @@ internal fun PosAppShell(
         scope.launch {
             val text = vm.diagnosticText()
             (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                .setPrimaryClip(ClipData.newPlainText("StallPOS diagnostics", text))
-            snackbarHostState.showSnackbar("診斷資訊已複製")
+                .setPrimaryClip(ClipData.newPlainText("StallPOS 回報", text))
+            snackbarHostState.showSnackbar("回報資訊已複製")
         }
     }
     val shareDiagnostics: () -> Unit = {
         scope.launch {
-            val intent = Intent(Intent.ACTION_SEND).apply {
+            val body = vm.diagnosticText()
+            val share = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, "StallPOS 診斷資訊")
-                putExtra(Intent.EXTRA_TEXT, vm.diagnosticText())
+                putExtra(Intent.EXTRA_EMAIL, arrayOf(DeveloperContact.EMAIL))
+                putExtra(Intent.EXTRA_SUBJECT, "StallPOS 回報")
+                putExtra(Intent.EXTRA_TEXT, body)
             }
-            runCatching { context.startActivity(Intent.createChooser(intent, "分享診斷資訊")) }
-                .onFailure { snackbarHostState.showSnackbar("沒有可分享文字的應用程式") }
+            val mail = reportToDeveloperIntent(body)
+            val chooser = Intent.createChooser(share, "回報給開發者").apply {
+                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(mail))
+            }
+            runCatching { context.startActivity(chooser) }
+                .onFailure { snackbarHostState.showSnackbar("沒有可寄信的應用程式") }
         }
     }
 
@@ -200,10 +205,8 @@ internal fun PosAppShell(
                 onSettingsMenuExpandedChange = { overlay.settingsMenuExpanded = it },
                 tourBounds = tourBounds,
                 feedback = feedback,
-                hapticEnabled = hapticEnabled,
-                soundEnabled = soundEnabled,
-                onHapticEnabledChange = onHapticEnabledChange,
-                onSoundEnabledChange = onSoundEnabledChange,
+                backupReminderVisible = backupReminderVisible,
+                onSnoozeBackup = vm::snoozeBackupReminder,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -273,5 +276,13 @@ internal fun PosAppShell(
         onGoogleSignIn = onGoogleSignIn,
         onCopyDiagnostics = copyDiagnostics,
         onShareDiagnostics = shareDiagnostics,
+        onExportBackup = {
+            backupJsonLauncher.launch("POS_完整備份_${uiState.todayKey}.json")
+        },
+        onRestoreBackup = {
+            restoreJsonLauncher.launch(
+                arrayOf("application/json", "application/octet-stream"),
+            )
+        },
     )
 }

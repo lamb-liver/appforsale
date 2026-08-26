@@ -134,6 +134,7 @@ internal fun PosViewModel.confirmCheckout(event: PosEvent.ConfirmCheckout) {
         try {
             try {
                 posStore.commitCheckout(request)
+                afterCanonicalWrite()
                 PosOpsLog.checkoutCommitted(
                     txCount = posUiState.value.txCount + 1,
                     receivableCents = request.total,
@@ -163,6 +164,7 @@ internal fun PosViewModel.undoCheckout() {
     viewModelScope.launch {
         try {
             posStore.undoLastCheckout()
+            afterCanonicalWrite()
             posCartMemory.value = posStore.cartFlow.first()
             PosOpsLog.checkoutUndone(txCount = posUiState.value.txCount)
             emitToast("已作廢上一筆結帳")

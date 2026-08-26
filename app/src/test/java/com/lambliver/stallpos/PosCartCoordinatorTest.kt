@@ -44,6 +44,16 @@ class PosCartCoordinatorTest {
     }
 
     @Test
+    fun setProductQty_inactive_userMessage() {
+        val inactive = prod.copy(isActive = false)
+        val r = PosCartCoordinator.execute(
+            state = PosCartCoordinator.CartState(listOf(inactive), bundles, PosCart()),
+            command = PosCartCoordinator.CartCommand.AddProduct("p1"),
+        ) as PosCartCoordinator.CartResult.UserMessage
+        assertEquals("此商品已停用", r.message)
+    }
+
+    @Test
     fun setProductQty_zeroStock_userMessage() {
         val dead = prod.copy(stock = 0L)
         val r = PosCartCoordinator.execute(
@@ -70,7 +80,7 @@ class PosCartCoordinatorTest {
             command = PosCartCoordinator.CartCommand.SetProductQty("p1", 999),
         ) as PosCartCoordinator.CartResult.Ready
         assertEquals(PosCart(products = mapOf("p1" to 5)), r.cart)
-        assertEquals(listOf("已達庫存或可搭配套組之上限"), r.toasts)
+        assertEquals(listOf("庫存不夠了"), r.toasts)
     }
 
     @Test
@@ -93,7 +103,7 @@ class PosCartCoordinatorTest {
             command = PosCartCoordinator.CartCommand.SetBundleQty("b1", 1),
         )
         val msg = r as PosCartCoordinator.CartResult.UserMessage
-        assertTrue(msg.message.contains("成分異常"))
+        assertTrue(msg.message.contains("套組內容有問題"))
     }
 
     @Test

@@ -42,6 +42,7 @@ private fun PosViewModel.launchLocalOperation(logName: String, userMessage: Stri
     viewModelScope.launch {
         try {
             block()
+            afterCanonicalWrite()
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "$logName failed", e)
             emitToast("$userMessage：${e.message}", PosToastSeverity.Error)

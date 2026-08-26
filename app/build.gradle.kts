@@ -165,3 +165,20 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
+
+afterEvaluate {
+    val unitTest = tasks.named("testDebugUnitTest", Test::class.java)
+    tasks.register<Test>("verifyMigrationFixtures") {
+        group = "verification"
+        description = "Migrate historical fixtures then run IntegrityAudit"
+        testClassesDirs = unitTest.get().testClassesDirs
+        classpath = unitTest.get().classpath
+        workingDir = unitTest.get().workingDir
+        systemProperties.putAll(unitTest.get().systemProperties)
+        jvmArgs = unitTest.get().jvmArgs
+        filter {
+            includeTestsMatching("com.lambliver.stallpos.integrity.*")
+        }
+        dependsOn("compileDebugUnitTestKotlin", "processDebugUnitTestJavaRes")
+    }
+}

@@ -53,6 +53,7 @@ private val LinearDarkColorScheme = darkColorScheme(
 fun StallPosTheme(
     darkTheme: Boolean = true,
     dynamicColor: Boolean = false,
+    extraLargeText: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -77,7 +78,7 @@ fun StallPosTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = stallPosTypography(extraLargeText),
         content = content,
     )
 }

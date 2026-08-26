@@ -42,9 +42,14 @@ class PosViewModel @JvmOverloads constructor(
 ) : AndroidViewModel(app) {
 
     internal val posStore: PosPersistence = posStore
-    private val appUiPrefs = AppUiPreferences(app)
+    internal val appUiPrefs = AppUiPreferences(app)
     val hapticEnabledFlow = appUiPrefs.hapticEnabledFlow
     val soundEnabledFlow = appUiPrefs.soundEnabledFlow
+    val extraLargeTextFlow = appUiPrefs.extraLargeTextFlow
+    internal var backupReminderSnoozed = false
+    val latestVersionTag = MutableStateFlow<String?>(null)
+    val backupReminderVisible = MutableStateFlow(false)
+    val checkDataMessage = MutableStateFlow<String?>(null)
     internal val posCheckoutInflight = AtomicBoolean(false)
     internal val posCsvExport = PosCsvExportAdapter()
     internal val posBackupSaf = PosBackupSafAdapter(posStore)
@@ -81,9 +86,14 @@ class PosViewModel @JvmOverloads constructor(
                 reconcileCartMemoryWithDisk()
             } catch (e: Throwable) {
                 Log.e(LOG_TAG, "cart load failed", e)
-                emitToast("購物車載入失敗，請重新開啟 App", PosToastSeverity.Error)
+                emitToast("購物車讀取失敗，請再開一次", PosToastSeverity.Error)
             }
             startObserving()
+        }
+        viewModelScope.launch {
+            runCatching { posStore.snapshot.first() }
+            refreshBackupReminder()
+            refreshLatestVersion()
         }
     }
 
@@ -134,6 +144,7 @@ class PosViewModel @JvmOverloads constructor(
             is PosEvent.AddProduct -> addProduct(event.name, event.price, event.categoryId, event.stock, event.cost)
             is PosEvent.UpdateProduct -> updateProduct(event.id, event.name, event.price, event.categoryId, event.stock, event.cost)
             is PosEvent.DeleteProduct -> deleteProduct(event.productId)
+            is PosEvent.SetProductActive -> setProductActive(event.productId, event.active)
             is PosEvent.SetProductStock -> setProductStock(event.productId, event.stock)
             is PosEvent.AddCategory -> addCategory(event.name)
             is PosEvent.UpdateCategory -> updateCategory(event.id, event.name)
@@ -165,6 +176,15 @@ class PosViewModel @JvmOverloads constructor(
 
     fun setSoundEnabled(enabled: Boolean) {
         viewModelScope.launch { appUiPrefs.setSoundEnabled(enabled) }
+    }
+
+    fun setExtraLargeText(enabled: Boolean) {
+        viewModelScope.launch { appUiPrefs.setExtraLargeText(enabled) }
+    }
+
+    fun snoozeBackupReminder() {
+        backupReminderSnoozed = true
+        backupReminderVisible.value = false
     }
 
     internal suspend fun signInWithGoogleIdToken(idToken: String) {
@@ -284,7 +304,7 @@ internal fun buildDiagnosticText(
     sync: SyncUiState,
     info: com.lambliver.stallpos.data.SyncDiagnosticInfo,
 ): String = buildString {
-    appendLine("StallPOS 診斷資訊")
+    appendLine("StallPOS 回報資訊")
     appendLine("App version: $appVersion")
     appendLine("Android version: $androidVersion")
     appendLine("Device anonymous id: ${info.deviceId ?: "unknown"}")

@@ -104,6 +104,8 @@ stallpos/
 
 協調器與金額邏輯的單元測試可用 **`FakePosPersistence`** mock 持久化層，不需裝置。其餘 JSON／CSV 測試見 `PosCartJsonTest`、`SalesRecordsJsonTest`、`PosCsvExportTest` 等。
 
+歷史資料遷移後必須通過 **IntegrityAudit**（結構 + 跨資料對帳）。CI 與 `./gradlew :app:verifyMigrationFixtures` 跑同一組規則。
+
 ### 備份版本（兩層欄位）
 
 | 欄位 | 層級 | 職責 |

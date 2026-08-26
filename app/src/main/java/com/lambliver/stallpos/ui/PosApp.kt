@@ -20,6 +20,7 @@ import com.lambliver.stallpos.domain.PosToastSeverity
 import com.lambliver.stallpos.ui.feedback.rememberPosFeedback
 import com.lambliver.stallpos.ui.pos.PosAppShell
 import com.lambliver.stallpos.ui.pos.rememberPosOverlayState
+import com.lambliver.stallpos.ui.theme.StallPosTheme
 import java.text.NumberFormat
 import java.util.Locale
 import java.util.UUID
@@ -38,6 +39,8 @@ fun PosApp(vm: PosViewModel = viewModel()) {
 
     val hapticEnabled by vm.hapticEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
     val soundEnabled by vm.soundEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
+    val extraLargeText by vm.extraLargeTextFlow.collectAsStateWithLifecycle(initialValue = false)
+    val backupReminderVisible by vm.backupReminderVisible.collectAsStateWithLifecycle()
     val feedback = rememberPosFeedback(hapticEnabled, soundEnabled)
 
     LaunchedEffect(vm.toastFlow, feedback) {
@@ -49,33 +52,32 @@ fun PosApp(vm: PosViewModel = viewModel()) {
         }
     }
 
-    PosAppShell(
-        vm = vm,
-        uiState = uiState,
-        currency = currency,
-        snackbarHostState = snackbarHostState,
-        overlay = overlay,
-        feedback = feedback,
-        hapticEnabled = hapticEnabled,
-        soundEnabled = soundEnabled,
-        onHapticEnabledChange = vm::setHapticEnabled,
-        onSoundEnabledChange = vm::setSoundEnabled,
-        cloudLoginConfigured = BuildConfig.SYNC_BASE_URL.isNotBlank() && BuildConfig.GOOGLE_SERVER_CLIENT_ID.isNotBlank(),
-        onGoogleSignIn = {
-            scope.launch {
-                runCatching {
-                    val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_SERVER_CLIENT_ID)
-                        .setNonce(UUID.randomUUID().toString())
-                        .build()
-                    val credential = credentialManager.getCredential(
-                        context,
-                        GetCredentialRequest.Builder().addCredentialOption(option).build(),
-                    ).credential
-                    require(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL)
-                    GoogleIdTokenCredential.createFrom(credential.data).idToken
-                }.onSuccess { vm.signInWithGoogleIdToken(it) }
-                    .onFailure { vm.reportGoogleSignInFailure(it.message) }
-            }
-        },
-    )
+    StallPosTheme(extraLargeText = extraLargeText) {
+        PosAppShell(
+            vm = vm,
+            uiState = uiState,
+            currency = currency,
+            snackbarHostState = snackbarHostState,
+            overlay = overlay,
+            feedback = feedback,
+            backupReminderVisible = backupReminderVisible,
+            cloudLoginConfigured = BuildConfig.SYNC_BASE_URL.isNotBlank() && BuildConfig.GOOGLE_SERVER_CLIENT_ID.isNotBlank(),
+            onGoogleSignIn = {
+                scope.launch {
+                    runCatching {
+                        val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_SERVER_CLIENT_ID)
+                            .setNonce(UUID.randomUUID().toString())
+                            .build()
+                        val credential = credentialManager.getCredential(
+                            context,
+                            GetCredentialRequest.Builder().addCredentialOption(option).build(),
+                        ).credential
+                        require(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL)
+                        GoogleIdTokenCredential.createFrom(credential.data).idToken
+                    }.onSuccess { vm.signInWithGoogleIdToken(it) }
+                        .onFailure { vm.reportGoogleSignInFailure(it.message) }
+                }
+            },
+        )
+    }
 }

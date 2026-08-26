@@ -119,6 +119,25 @@ internal class FakePosPersistence(initial: PosPersistSnapshot = PosPersistSnapsh
         }
     }
 
+    override suspend fun integritySnapshot(): IntegritySnapshot {
+        val cur = state.value
+        val effective = activeSales(cur.salesLog, cur.reversalLog)
+        return IntegritySnapshot(
+            products = cur.products,
+            categories = cur.categories,
+            bundleCategories = cur.bundleCategories,
+            bundles = cur.bundles,
+            sales = cur.salesLog,
+            reversals = cur.reversalLog,
+            events = cur.events,
+            inventoryLevels = cur.inventoryLevels,
+            inventoryMovements = cur.inventoryMovements,
+            lastCheckout = cur.lastCheckout,
+            reportedRevenue = effective.sumOf { it.total + it.tipAmount },
+            reportedTxCount = effective.size.toLong(),
+        )
+    }
+
     override suspend fun exportFullBackupJson(): String {
         val cur = state.value
         val effectiveSales = activeSales(cur.salesLog, cur.reversalLog)

@@ -5,6 +5,7 @@ import com.lambliver.stallpos.domain.*
 import android.app.Application
 import android.net.Uri
 import android.util.Log
+import com.lambliver.stallpos.data.PosBackupSafAdapter
 import com.lambliver.stallpos.domain.DocumentTarget
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.first
@@ -26,7 +27,7 @@ internal fun PosViewModel.exportCsv(target: DocumentTarget) {
             ).getOrThrow()
             PosOpsLog.csvExported(recordCount = state.salesLog.size)
             posCsvShareUriChannel.send(target.value)
-            emitToast("CSV 導出成功！")
+            emitToast("已匯出銷售紀錄")
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "exportCsv failed", e)
             emitToast("導出失敗，請再試一次", PosToastSeverity.Error)
@@ -39,6 +40,7 @@ internal fun PosViewModel.exportBackupJson(target: DocumentTarget) {
     viewModelScope.launch {
         try {
             posBackupSaf.writeFullBackupJson(getApplication<Application>().contentResolver, uri).getOrThrow()
+            afterSuccessfulBackup()
             PosOpsLog.backupExported(schemaVersion = com.lambliver.stallpos.data.PosStore.BACKUP_SCHEMA_VERSION)
             emitToast("備份已儲存")
         } catch (e: Throwable) {
@@ -58,7 +60,7 @@ internal fun PosViewModel.importBackupJson(target: DocumentTarget) {
             emitToast(BackupRestoreResult.ReadFailed().userMessage, PosToastSeverity.Error)
             return@launch
         }
-        if (text.isBlank()) {
+        if (text.isBlank() || text.length > PosBackupSafAdapter.MAX_BACKUP_BYTES) {
             emitToast(BackupRestoreResult.ReadFailed().userMessage, PosToastSeverity.Error)
             return@launch
         }
@@ -80,6 +82,7 @@ internal suspend fun PosViewModel.restoreBackupFromText(text: String): BackupRes
         posStore.restoreFullBackupJson(text).getOrThrow()
         val snap = posStore.snapshot.first()
         applyPostBackupRestore(snap.cart)
+        afterCanonicalWrite()
         PosOpsLog.backupRestored(schemaVersion = com.lambliver.stallpos.data.PosStore.BACKUP_SCHEMA_VERSION)
         BackupRestoreResult.Success
     } catch (e: Throwable) {

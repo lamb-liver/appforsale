@@ -15,40 +15,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lambliver.stallpos.domain.*
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-internal fun SyncUiState.displayText(): String = when (status) {
-    SyncUiStatus.LOCAL_ONLY -> "資料只在這支手機"
-    SyncUiStatus.LOADING -> "正在確認同步…"
-    SyncUiStatus.SYNCED -> if (lastSyncedAtMillis == null) "已登入，等待第一次同步" else "已同步"
-    SyncUiStatus.PENDING -> "$pendingCount 筆還沒上傳"
-    SyncUiStatus.BLOCKED -> "$blockedCount 筆同步失敗，需要處理"
-    SyncUiStatus.ERROR -> message ?: "同步暫時失敗，會自動再試"
-}
-
-internal fun SyncUiState.lastSyncText(): String? = when {
-    status == SyncUiStatus.LOCAL_ONLY || status == SyncUiStatus.LOADING -> null
-    lastSyncedAtMillis != null -> "上次成功：${SimpleDateFormat("M/d HH:mm", Locale.getDefault()).format(Date(lastSyncedAtMillis))}"
-    else -> "還沒成功上傳過"
-}
-
-internal fun SyncUiState.attentionText(): String? = when (status) {
-    SyncUiStatus.PENDING -> "$pendingCount 筆還沒上傳"
-    SyncUiStatus.BLOCKED -> "$blockedCount 筆同步失敗"
-    SyncUiStatus.ERROR -> message ?: "同步暫時失敗"
-    else -> null
-}
 
 private enum class InventoryUiAction(val label: String) {
     ALLOCATE("調到現場"),
     RETURN("退回總倉"),
-    GENERAL_ADD("總倉盤增"),
-    GENERAL_REMOVE("總倉盤減"),
-    GENERAL_DAMAGE("總倉損壞"),
-    EVENT_ADD("現場盤增"),
-    EVENT_DAMAGE("現場損壞"),
+    GENERAL_ADD("總倉增加"),
+    GENERAL_REMOVE("總倉減少"),
+    GENERAL_DAMAGE("總倉報損"),
+    EVENT_ADD("現場增加"),
+    EVENT_DAMAGE("現場報損"),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,19 +64,22 @@ internal fun LocalOperationsBottomSheet(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 uiState.sync.lastSyncText()?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                uiState.sync.blockedReasonText()?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                }
                 if (uiState.sync.status == SyncUiStatus.LOCAL_ONLY) {
                     OutlinedButton(
                         onClick = onGoogleSignIn,
                         enabled = cloudLoginConfigured,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     ) {
-                        Text(if (cloudLoginConfigured) "使用 Google 登入，方便換機" else "這版尚未接上雲端")
+                        Text(if (cloudLoginConfigured) "用 Google 登入，方便換機" else "這版還沒開雲端")
                     }
                 }
-                Text("診斷資訊給客服用，不含帳號或交易內容", style = MaterialTheme.typography.bodySmall)
+                Text("回報給開發者時會附上，不含帳號或交易", style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onCopyDiagnostics, modifier = Modifier.weight(1f)) { Text("複製診斷資訊") }
-                    OutlinedButton(onClick = onShareDiagnostics, modifier = Modifier.weight(1f)) { Text("分享診斷資訊") }
+                    OutlinedButton(onClick = onCopyDiagnostics, modifier = Modifier.weight(1f)) { Text("複製回報資訊") }
+                    OutlinedButton(onClick = onShareDiagnostics, modifier = Modifier.weight(1f)) { Text("分享回報資訊") }
                 }
             }
 
@@ -187,7 +165,7 @@ internal fun LocalOperationsBottomSheet(
                 }
             }
             if (trackedProducts.isEmpty()) {
-                item { Text("尚無追蹤庫存的商品。") }
+                item { Text("還沒有要扣庫存的商品。") }
             } else {
                 items(trackedProducts, key = { it.id }) { product ->
                     val general = uiState.inventoryLevels.quantity(product.id, InventoryLocation.General)

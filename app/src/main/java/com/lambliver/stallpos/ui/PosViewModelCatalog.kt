@@ -14,7 +14,7 @@ internal fun PosViewModel.addProduct(name: String, price: Long, categoryId: Stri
     val updated = posUiState.value.products + newProduct
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(products = updated))
+            persistCatalog(CatalogPersistPlan(products = updated))
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addProduct failed", e)
@@ -36,7 +36,7 @@ internal fun PosViewModel.updateProduct(
     }
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(products = updated))
+            persistCatalog(CatalogPersistPlan(products = updated))
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateProduct failed", e)
@@ -52,7 +52,7 @@ internal fun PosViewModel.setProductStock(productId: String, stock: Long?) {
     }
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(products = updated))
+            persistCatalog(CatalogPersistPlan(products = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "setProductStock failed", e)
             emitToast("更新庫存失敗：${e.message}", PosToastSeverity.Error)
@@ -82,7 +82,7 @@ internal fun PosViewModel.deleteProduct(productId: String) {
             r.plan.cart?.let { posCartMemory.value = it }
             viewModelScope.launch {
                 try {
-                    posStore.applyCatalog(
+                    persistCatalog(
                         CatalogPersistPlan(
                             products = r.plan.products,
                             bundles = r.plan.bundles,
@@ -101,19 +101,19 @@ internal fun PosViewModel.deleteProduct(productId: String) {
 
 internal fun PosViewModel.addBundle(name: String, price: Long, categoryId: String, components: List<BundleComponent>) {
     if (posUiState.value.products.isEmpty()) {
-        emitToastAsync("請先新增一般商品，才能建立套組", PosToastSeverity.Error)
+        emitToastAsync("請先新增一般商品再建立套組", PosToastSeverity.Error)
         return
     }
     val products = posUiState.value.products
     val cleaned = posNormalizeComponents(products, components) ?: run {
-        emitToastAsync("成分須指向現有商品且每套數量至少 1", PosToastSeverity.Error)
+        emitToastAsync("套組內容要選現有商品，每套至少 1 件", PosToastSeverity.Error)
         return
     }
     val bundle = Bundle(UUID.randomUUID().toString(), name.trim(), price.coerceAtLeast(0L), categoryId, cleaned)
     val updated = posUiState.value.bundles + bundle
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(bundles = updated))
+            persistCatalog(CatalogPersistPlan(bundles = updated))
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addBundle failed", e)
@@ -129,7 +129,7 @@ internal fun PosViewModel.updateBundle(id: String, name: String, price: Long, ca
     }
     val products = posUiState.value.products
     val cleaned = posNormalizeComponents(products, components) ?: run {
-        emitToastAsync("成分須指向現有商品且每套數量至少 1", PosToastSeverity.Error)
+        emitToastAsync("套組內容要選現有商品，每套至少 1 件", PosToastSeverity.Error)
         return
     }
     val updated = posUiState.value.bundles.map {
@@ -137,7 +137,7 @@ internal fun PosViewModel.updateBundle(id: String, name: String, price: Long, ca
     }
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(bundles = updated))
+            persistCatalog(CatalogPersistPlan(bundles = updated))
             posUiState.update { it.copy(dialogState = DialogState.None) }
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateBundle failed", e)
@@ -168,7 +168,7 @@ internal fun PosViewModel.deleteBundle(bundleId: String) {
             r.plan.cart?.let { posCartMemory.value = it }
             viewModelScope.launch {
                 try {
-                    posStore.applyCatalog(
+                    persistCatalog(
                         CatalogPersistPlan(
                             products = r.plan.products,
                             bundles = r.plan.bundles,
@@ -190,7 +190,7 @@ internal fun PosViewModel.addBundleCategory(name: String) {
     val updated = posUiState.value.bundleCategories + newCat
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(bundleCategories = updated))
+            persistCatalog(CatalogPersistPlan(bundleCategories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addBundleCategory failed", e)
             emitToast("新增套組分類失敗：${e.message}", PosToastSeverity.Error)
@@ -204,7 +204,7 @@ internal fun PosViewModel.updateBundleCategory(id: String, name: String) {
     }
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(bundleCategories = updated))
+            persistCatalog(CatalogPersistPlan(bundleCategories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateBundleCategory failed", e)
             emitToast("編輯套組分類失敗：${e.message}", PosToastSeverity.Error)
@@ -219,7 +219,7 @@ internal fun PosViewModel.deleteBundleCategory(id: String) {
     }
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(
+            persistCatalog(
                 CatalogPersistPlan(
                     bundleCategories = updatedCats,
                     bundles = updatedBundles,
@@ -237,7 +237,7 @@ internal fun PosViewModel.addCategory(name: String) {
     val updated = posUiState.value.categories + newCat
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(categories = updated))
+            persistCatalog(CatalogPersistPlan(categories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "addCategory failed", e)
             emitToast("新增分類失敗：${e.message}", PosToastSeverity.Error)
@@ -251,7 +251,7 @@ internal fun PosViewModel.updateCategory(id: String, name: String) {
     }
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(CatalogPersistPlan(categories = updated))
+            persistCatalog(CatalogPersistPlan(categories = updated))
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "updateCategory failed", e)
             emitToast("編輯分類失敗：${e.message}", PosToastSeverity.Error)
@@ -266,7 +266,7 @@ internal fun PosViewModel.deleteCategory(id: String) {
     }
     viewModelScope.launch {
         try {
-            posStore.applyCatalog(
+            persistCatalog(
                 CatalogPersistPlan(
                     categories = updatedCats,
                     products = updatedProds,

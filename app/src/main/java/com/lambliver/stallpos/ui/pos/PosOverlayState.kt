@@ -93,6 +93,7 @@ internal class PosOverlayState(
             PosUiEvent.ShowDashboardSheet,
             PosUiEvent.ShowLocalOperationsSheet,
             PosUiEvent.ShowSponsorSheet,
+            PosUiEvent.ShowSettingsSheet,
             -> Unit
             PosUiEvent.RequestExportCsv -> onExportCsv()
             PosUiEvent.RequestBackupJson -> onBackupJson()

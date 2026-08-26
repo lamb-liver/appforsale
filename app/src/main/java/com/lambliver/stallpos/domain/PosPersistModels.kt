@@ -18,6 +18,8 @@ data class Product(
     val stock: Long? = null,
     /** `null` = 成本未知，不得當作 0。 */
     val cost: Long? = null,
+    /** false = 停用：仍在目錄、不進快選、不能新結帳。 */
+    val isActive: Boolean = true,
 )
 
 /** 套組專用分類（與一般商品 [Category] 分開） */

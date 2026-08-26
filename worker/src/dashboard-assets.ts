@@ -97,5 +97,6 @@ export function dashboardAsset(path: string): Response | null {
     "referrer-policy": "no-referrer",
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
   } });
 }

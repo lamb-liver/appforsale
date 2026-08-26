@@ -186,7 +186,9 @@ internal interface V2RoomDao {
     @Query(
         "SELECT " +
             "COALESCE(SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending_count, " +
-            "COALESCE(SUM(CASE WHEN status = 'BLOCKED' THEN 1 ELSE 0 END), 0) AS blocked_count " +
+            "COALESCE(SUM(CASE WHEN status = 'BLOCKED' THEN 1 ELSE 0 END), 0) AS blocked_count, " +
+            "COALESCE(MAX(CASE WHEN status = 'PENDING' THEN attempt_count ELSE 0 END), 0) AS max_pending_attempts, " +
+            "MIN(CASE WHEN status = 'BLOCKED' THEN last_error_code END) AS blocked_error_code " +
             "FROM sync_outbox",
     )
     fun observeOutboxCounts(): Flow<SyncOutboxCounts>
@@ -221,4 +223,6 @@ internal interface V2RoomDao {
 internal data class SyncOutboxCounts(
     @androidx.room.ColumnInfo(name = "pending_count") val pendingCount: Int,
     @androidx.room.ColumnInfo(name = "blocked_count") val blockedCount: Int,
+    @androidx.room.ColumnInfo(name = "max_pending_attempts") val maxPendingAttempts: Int,
+    @androidx.room.ColumnInfo(name = "blocked_error_code") val blockedErrorCode: String?,
 )

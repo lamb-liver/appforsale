@@ -41,7 +41,7 @@ internal object PosCheckoutCoordinator {
         for (b in bundles) {
             if (bc[b.id] ?: 0 <= 0) continue
             if (!posValidateBundleComponents(products, b)) {
-                return PrepareResult.UserMessage("套組「${b.name}」成分異常，無法結帳")
+                return PrepareResult.UserMessage("套組「${b.name}」內容有問題，無法結帳")
             }
         }
 

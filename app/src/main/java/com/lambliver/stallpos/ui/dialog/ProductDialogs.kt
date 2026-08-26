@@ -83,7 +83,7 @@ fun StockAdjustDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment     = Alignment.CenterVertically,
                 ) {
-                    Text("追蹤庫存", style = MaterialTheme.typography.titleMedium)
+                    Text("扣庫存", style = MaterialTheme.typography.titleMedium)
                     Switch(checked = trackStock, onCheckedChange = { trackStock = it })
                 }
                 if (trackStock) {
@@ -94,11 +94,11 @@ fun StockAdjustDialog(
                         singleLine      = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier        = Modifier.fillMaxWidth(),
-                        supportingText  = { Text("為 0 時無法加入購物車", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) },
+                        supportingText  = { Text("庫存 0 不能賣", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) },
                     )
                 } else {
                     Text(
-                        "未勾選時為無上限（不扣庫存）",
+                        "關閉後不扣庫存",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -180,7 +180,7 @@ fun ProductFormDialog(
                     value = costText,
                     onValueChange = { costText = it.filter(Char::isDigit) },
                     label = { Text("成本（選填）") },
-                    supportingText = { Text("未知請留空，不會當作 0") },
+                    supportingText = { Text("不知道就留空") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
@@ -197,7 +197,7 @@ fun ProductFormDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment     = Alignment.CenterVertically,
                 ) {
-                    Text("追蹤庫存", style = MaterialTheme.typography.titleMedium)
+                    Text("扣庫存", style = MaterialTheme.typography.titleMedium)
                     Switch(checked = trackStock, onCheckedChange = { trackStock = it })
                 }
                 if (trackStock) {
@@ -207,7 +207,7 @@ fun ProductFormDialog(
                         label           = { Text("庫存數量") },
                         singleLine      = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        supportingText  = { Text("為 0 無法加入購物車；關閉則無上限", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) },
+                        supportingText  = { Text("庫存 0 不能賣；關閉就不扣庫存", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) },
                     )
                 }
 
@@ -319,6 +319,7 @@ fun ProductActionSheet(
     sheetState:    SheetState,
     onEdit:        () -> Unit,
     onDelete:      () -> Unit,
+    onDeactivate:  () -> Unit,
     onAdjustStock: () -> Unit,
     onDismiss:     () -> Unit,
 ) {
@@ -349,6 +350,13 @@ fun ProductActionSheet(
                 leadingContent  = { Icon(Icons.Default.Inventory2, contentDescription = null) },
                 modifier        = Modifier.clickable(onClick = onAdjustStock),
             )
+            if (product.isActive) {
+                ListItem(
+                    headlineContent = { Text("停用商品", fontSize = 18.sp) },
+                    leadingContent  = { Icon(Icons.Default.VisibilityOff, contentDescription = null) },
+                    modifier        = Modifier.clickable(onClick = onDeactivate),
+                )
+            }
             ListItem(
                 headlineContent = {
                     Text("刪除商品", fontSize = 18.sp, color = MaterialTheme.colorScheme.error)

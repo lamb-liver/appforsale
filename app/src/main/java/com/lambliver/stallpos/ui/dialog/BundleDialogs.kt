@@ -175,7 +175,7 @@ fun BundleFormDialog(
                         )
                     }
                 }
-                Text("成分（每套所需數量）", style = MaterialTheme.typography.labelLarge)
+                Text("內容（每套要幾件）", style = MaterialTheme.typography.labelLarge)
                 for ((idx, row) in rows.withIndex()) {
                     val pid = row.first
                     val qt = row.second
@@ -211,7 +211,7 @@ fun BundleFormDialog(
                     onClick  = { pickProduct = true },
                     enabled  = products.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("加入成分") }
+                ) { Text("加入商品") }
             }
         },
         confirmButton = {
@@ -243,7 +243,7 @@ fun BundleFormDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = "選擇成分商品",
+                        text = "選擇商品",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )

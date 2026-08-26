@@ -44,4 +44,26 @@ class ProductSearchComposeTest {
         composeRule.onAllNodesWithText("Apple Badge").assertCountEquals(1)
         composeRule.onAllNodesWithText("Banana Sticker").assertCountEquals(0)
     }
+
+    @Test
+    fun inactiveProducts_areHiddenFromQuickCheckout() {
+        composeRule.setContent {
+            StallPosTheme {
+                ProductQuickRow(
+                    products = persistentListOf(
+                        Product("a", "在售", 100),
+                        Product("b", "已停用", 50, isActive = false),
+                    ),
+                    categories = persistentListOf(),
+                    cart = persistentMapOf(),
+                    currency = NumberFormat.getCurrencyInstance(Locale.TAIWAN),
+                    onTap = {},
+                    onLongPress = {},
+                    onLongPressCategory = {},
+                )
+            }
+        }
+        composeRule.onAllNodesWithText("在售").assertCountEquals(1)
+        composeRule.onAllNodesWithText("已停用").assertCountEquals(0)
+    }
 }

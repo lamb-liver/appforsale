@@ -44,6 +44,7 @@ interface PosPersistence {
         type: InventoryMovementType,
     ): Unit = error("Inventory requires v2 Room persistence")
     suspend fun diagnosticInfo(): SyncDiagnosticInfo = SyncDiagnosticInfo()
+    suspend fun integritySnapshot(): IntegritySnapshot = IntegritySnapshot()
 }
 
 data class SyncDiagnosticInfo(

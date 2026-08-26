@@ -9,7 +9,7 @@ internal sealed class BackupRestoreResult {
     abstract val userMessage: String
 
     data object Success : BackupRestoreResult() {
-        override val userMessage: String = "資料已由備份完整還原"
+        override val userMessage: String = "已用備份還原"
     }
 
     data class ReadFailed(
@@ -17,7 +17,7 @@ internal sealed class BackupRestoreResult {
     ) : BackupRestoreResult()
 
     data class RestoreFailed(
-        override val userMessage: String = "還原失敗，請確認檔案格式",
+        override val userMessage: String = "還原失敗，請確認這是備份檔",
     ) : BackupRestoreResult()
 }
 

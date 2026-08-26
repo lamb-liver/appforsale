@@ -118,10 +118,15 @@ internal fun ProductQuickRow(
     onTilePressFeedback: () -> Unit = {},
     modifier:           Modifier = Modifier,
 ) {
-    if (products.isEmpty()) {
+    val sellable = remember(products) { products.filter { it.isActive } }
+    if (sellable.isEmpty()) {
         Box(modifier, contentAlignment = Alignment.Center) {
             Text(
-                text      = "尚未建立商品\n請點右上角齒輪 →「新增商品」",
+                text      = if (products.isEmpty()) {
+                    "尚未建立商品\n請點右上角齒輪 →「新增商品」"
+                } else {
+                    "沒有可販售的商品"
+                },
                 color     = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize  = 18.sp,
@@ -169,13 +174,13 @@ internal fun ProductQuickRow(
         }
 
         // ── 商品格線（依選取分類篩選；cart 變動不重复配置 filter）────────
-        val visibleProducts by remember(products, categories, selectedCatId, searchText) {
+        val visibleProducts by remember(sellable, categories, selectedCatId, searchText) {
             derivedStateOf {
                 val inCategory = when {
-                    categories.isEmpty()        -> products
-                    selectedCatId == ""         -> products
-                    selectedCatId == "__none__" -> products.filter { it.categoryId.isEmpty() }
-                    else                        -> products.filter { it.categoryId == selectedCatId }
+                    categories.isEmpty()        -> sellable
+                    selectedCatId == ""         -> sellable
+                    selectedCatId == "__none__" -> sellable.filter { it.categoryId.isEmpty() }
+                    else                        -> sellable.filter { it.categoryId == selectedCatId }
                 }
                 val query = searchText.trim()
                 if (query.isEmpty()) inCategory else inCategory.filter { it.name.contains(query, ignoreCase = true) }
@@ -228,7 +233,7 @@ internal fun BundleQuickRow(
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
                 Text(
                     text      = if (bundleCategories.isEmpty() && bundles.isEmpty())
-                        "尚未建立套組\n（須先有一般商品，再於右上角齒輪選「新增套組」）"
+                        "還沒有套組\n先新增一般商品，再到齒輪選「新增套組」"
                     else "尚未建立套組",
                     color     = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -357,7 +362,7 @@ private fun BundleTile(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text       = "${bundle.components.size} 項成分／套",
+                text       = "${bundle.components.size} 項／套",
                 color      = Color.White.copy(alpha = 0.62f),
                 fontSize   = 14.sp,
                 fontWeight = FontWeight.Normal,
@@ -377,7 +382,7 @@ internal fun CategoryTab(
     onLongClick:(() -> Unit)? = null,
 ) {
     val bgColor   = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    val textColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(24.dp))
@@ -448,7 +453,7 @@ private fun ProductTile(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text       = "庫存 ${product.stock}",
-                    color      = Color.White.copy(alpha = 0.62f),
+                    color      = Color.White.copy(alpha = 0.88f),
                     fontSize   = 14.sp,
                     fontWeight = FontWeight.Normal,
                     textAlign  = TextAlign.Center,
@@ -485,67 +490,6 @@ private fun BoxScope.CartQtyBadge(qty: Int, accentColor: Color) {
                     fontWeight = FontWeight.Black,
                     fontSize   = 14.sp,
                 )
-            }
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// 自訂金額數字鍵盤（僅數字與清除；折扣按鈕在畫面常駐列）
-// ════════════════════════════════════════════════════════════════════════════
-
-private val numpadKeys = listOf(
-    listOf("7", "8", "9"),
-    listOf("4", "5", "6"),
-    listOf("1", "2", "3"),
-    listOf("C", "0", "⌫"),
-)
-
-@Composable
-internal fun PosNumpad(
-    onKey:    (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-    ) {
-        for (row in numpadKeys) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                for (key in row) {
-                    OutlinedButton(
-                        onClick  = { onKey(key) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(vertical = 8.dp),
-                        shape    = RoundedCornerShape(8.dp),
-                        colors   = ButtonDefaults.outlinedButtonColors(
-                            containerColor = when (key) {
-                                "C"  -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                                "⌫" -> MaterialTheme.colorScheme.secondaryContainer
-                                else -> MaterialTheme.colorScheme.surface
-                            },
-                        ),
-                    ) {
-                        Text(
-                            text       = key,
-                            style      = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color      = when (key) {
-                                "C"  -> MaterialTheme.colorScheme.error
-                                "⌫" -> MaterialTheme.colorScheme.onSecondaryContainer
-                                else -> MaterialTheme.colorScheme.onSurface
-                            },
-                        )
-                    }
-                }
             }
         }
     }

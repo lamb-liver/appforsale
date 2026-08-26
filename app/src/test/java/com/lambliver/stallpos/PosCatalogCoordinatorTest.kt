@@ -138,6 +138,39 @@ class PosCatalogCoordinatorTest {
     }
 
     @Test
+    fun setProductActive_false_clearsCartAndMarksInactive() {
+        val result = PosCatalogCoordinator.execute(
+            state = state(),
+            command = CatalogCommand.SetProductActive("p1", false),
+        )
+        val ready = result as PosCatalogCoordinator.CatalogResult.Ready
+        assertEquals(false, ready.plan.products!!.single { it.id == "p1" }.isActive)
+        assertEquals(mapOf("p2" to 1), ready.plan.cart!!.products)
+    }
+
+    @Test
+    fun setProductActive_false_refusesWhenBundleReferencesProduct() {
+        val result = PosCatalogCoordinator.execute(
+            state = state(bundles = listOf(bundleUsingP1)),
+            command = CatalogCommand.SetProductActive("p1", false),
+        )
+        val msg = result as PosCatalogCoordinator.CatalogResult.UserMessage
+        assertTrue(msg.message.contains("「品A」正被套組 組 使用"))
+    }
+
+    @Test
+    fun setProductActive_true_reactivates() {
+        val inactive = p1.copy(isActive = false)
+        val result = PosCatalogCoordinator.execute(
+            state = state(products = listOf(inactive, p2), cart = PosCart()),
+            command = CatalogCommand.SetProductActive("p1", true),
+        )
+        val ready = result as PosCatalogCoordinator.CatalogResult.Ready
+        assertEquals(true, ready.plan.products!!.single { it.id == "p1" }.isActive)
+        assertNull(ready.plan.cart)
+    }
+
+    @Test
     fun deleteBundle_ignored_whenBundleMissing() {
         val result = PosCatalogCoordinator.execute(
             state = state(bundles = listOf(bundleUsingP1)),

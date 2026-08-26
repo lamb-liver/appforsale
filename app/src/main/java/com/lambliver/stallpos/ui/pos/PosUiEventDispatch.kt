@@ -11,6 +11,7 @@ internal fun PosUiEvent.toSheetOverlayOrNull(): PosSheetOverlay? = when (this) {
     PosUiEvent.ShowDashboardSheet -> PosSheetOverlay.Dashboard
     PosUiEvent.ShowLocalOperationsSheet -> PosSheetOverlay.LocalOperations
     PosUiEvent.ShowSponsorSheet -> PosSheetOverlay.Sponsor
+    PosUiEvent.ShowSettingsSheet -> PosSheetOverlay.Settings
     else -> null
 }
 

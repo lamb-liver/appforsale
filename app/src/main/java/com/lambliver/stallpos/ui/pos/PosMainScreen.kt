@@ -26,11 +26,11 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.lambliver.stallpos.BuildConfig
 import com.lambliver.stallpos.domain.*
 import com.lambliver.stallpos.ui.feedback.PosFeedbackManager
 import kotlinx.collections.immutable.toImmutableMap
 import java.text.NumberFormat
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 
 internal enum class CatalogTab { Products, Bundles }
@@ -57,10 +57,8 @@ internal fun PosMainScreen(
     onSettingsMenuExpandedChange: (Boolean) -> Unit,
     tourBounds: PosTourBounds,
     feedback: PosFeedbackManager,
-    hapticEnabled: Boolean,
-    soundEnabled: Boolean,
-    onHapticEnabledChange: (Boolean) -> Unit,
-    onSoundEnabledChange: (Boolean) -> Unit,
+    backupReminderVisible: Boolean,
+    onSnoozeBackup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val productSearchText = rememberSaveable { mutableStateOf("") }
@@ -87,13 +85,12 @@ internal fun PosMainScreen(
                             text = attention,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = if (
+                            color = when {
                                 uiState.sync.status == SyncUiStatus.BLOCKED ||
-                                uiState.sync.status == SyncUiStatus.ERROR
-                            ) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                    uiState.sync.status == SyncUiStatus.ERROR ->
+                                    MaterialTheme.colorScheme.error
+                                uiState.sync.emphasizesPending -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
                             },
                         )
                     }
@@ -107,21 +104,34 @@ internal fun PosMainScreen(
                     onClick = { onUiEvent(PosUiEvent.UndoCheckout) },
                     enabled = uiState.lastCheckout != null,
                     modifier = Modifier.size(48.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                    ),
                 ) { Icon(Icons.Default.Undo, contentDescription = "作廢上筆交易") }
                 IconButton(
                     onClick = { onUiEvent(PosUiEvent.ShowDashboardSheet) },
                     modifier = Modifier.size(48.dp),
-                ) { Icon(Icons.Default.Dashboard, contentDescription = "今日儀表板") }
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                ) { Icon(Icons.Default.Dashboard, contentDescription = "今日明細") }
                 IconButton(
                     onClick = { onUiEvent(PosUiEvent.RequestExportCsv) },
                     modifier = Modifier.size(48.dp),
-                ) { Icon(Icons.Default.FileDownload, contentDescription = "匯出全部銷售 CSV") }
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                ) { Icon(Icons.Default.FileDownload, contentDescription = "匯出銷售紀錄") }
                 Box(
                     Modifier.onGloballyPositioned { tourBounds.fab.value = it.boundsInRoot() },
                 ) {
                     IconButton(
                         onClick = { onSettingsMenuExpandedChange(true) },
                         modifier = Modifier.size(48.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
                     ) { Icon(Icons.Default.Settings, contentDescription = "設定") }
                     DropdownMenu(
                         expanded = settingsMenuExpanded,
@@ -163,52 +173,36 @@ internal fun PosMainScreen(
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text(if (hapticEnabled) "震動回饋　開" else "震動回饋　關") },
-                            leadingIcon = {
-                                if (hapticEnabled) {
-                                    Icon(Icons.Default.Check, contentDescription = null)
-                                }
-                            },
-                            onClick = { onHapticEnabledChange(!hapticEnabled) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(if (soundEnabled) "音效回饋　開" else "音效回饋　關") },
-                            leadingIcon = {
-                                if (soundEnabled) {
-                                    Icon(Icons.Default.Check, contentDescription = null)
-                                }
-                            },
-                            onClick = { onSoundEnabledChange(!soundEnabled) },
-                        )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("匯出本機備份檔") },
+                            text = { Text("設定") },
+                            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null) },
                             onClick = {
                                 onSettingsMenuExpandedChange(false)
-                                onUiEvent(PosUiEvent.RequestBackupJson)
+                                onUiEvent(PosUiEvent.ShowSettingsSheet)
                             },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("從本機備份還原") },
-                            onClick = {
-                                onSettingsMenuExpandedChange(false)
-                                onUiEvent(PosUiEvent.RequestRestoreJson)
-                            },
-                        )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "v${BuildConfig.VERSION_NAME}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            onClick = {},
-                            enabled = false,
                         )
                     }
                 }
+            }
+        }
+
+        if (backupReminderVisible) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .testTag("backup-reminder"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "有尚未備份的變更",
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onUiEvent(PosUiEvent.ShowSettingsSheet) },
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = onSnoozeBackup) { Text("稍後") }
             }
         }
 
@@ -269,6 +263,12 @@ internal fun PosMainScreen(
                     onValueChange = { productSearchText.value = it },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     placeholder = { Text("搜尋商品名稱") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    ),
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = if (productSearchText.value.isEmpty()) null else {{
                         IconButton(onClick = { productSearchText.value = "" }) {
@@ -386,7 +386,7 @@ internal fun PosMainScreen(
                             uiState.checkoutDiscountApplied > 0 -> MaterialTheme.colorScheme.onError
                             uiState.checkoutGrandBeforeDiscount > 0 ->
                                 MaterialTheme.colorScheme.onSecondaryContainer
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                     )
                 }
@@ -471,7 +471,7 @@ internal fun PosMainScreen(
                     onClick = { onUiEvent(PosUiEvent.ClearCart) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 ) {
                     Text(

@@ -116,3 +116,25 @@ val Typography = Typography(
         letterSpacing = 0.sp,
     ),
 )
+
+internal fun stallPosTypography(extraLarge: Boolean): Typography {
+    if (!extraLarge) return Typography
+    fun TextStyle.bump() = copy(fontSize = fontSize * 1.25f, lineHeight = lineHeight * 1.25f)
+    return Typography.copy(
+        displayLarge = Typography.displayLarge.bump(),
+        displayMedium = Typography.displayMedium.bump(),
+        displaySmall = Typography.displaySmall.bump(),
+        headlineLarge = Typography.headlineLarge.bump(),
+        headlineMedium = Typography.headlineMedium.bump(),
+        headlineSmall = Typography.headlineSmall.bump(),
+        titleLarge = Typography.titleLarge.bump(),
+        titleMedium = Typography.titleMedium.bump(),
+        titleSmall = Typography.titleSmall.bump(),
+        bodyLarge = Typography.bodyLarge.bump(),
+        bodyMedium = Typography.bodyMedium.bump(),
+        bodySmall = Typography.bodySmall.bump(),
+        labelLarge = Typography.labelLarge.bump(),
+        labelMedium = Typography.labelMedium.bump(),
+        labelSmall = Typography.labelSmall.bump(),
+    )
+}

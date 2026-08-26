@@ -35,6 +35,7 @@ class LocalOperationsComposeTest {
         }
         composeRule.onNodeWithText("活動與庫存").assertIsDisplayed()
         composeRule.onNodeWithText("尚未建立活動", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("回報給開發者", substring = true).assertIsDisplayed()
     }
 
     @Test

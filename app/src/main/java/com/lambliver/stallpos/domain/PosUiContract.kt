@@ -149,6 +149,7 @@ sealed interface PosEvent {
         val cost: Long? = null,
     ) : PosEvent
     data class DeleteProduct(val productId: String) : PosEvent
+    data class SetProductActive(val productId: String, val active: Boolean) : PosEvent
     data class SetProductStock(val productId: String, val stock: Long?) : PosEvent
     data class AddCategory(val name: String) : PosEvent
     data class UpdateCategory(val id: String, val name: String) : PosEvent
@@ -199,7 +200,12 @@ data class SyncUiState(
     val blockedCount: Int = 0,
     val message: String? = null,
     val lastSyncedAtMillis: Long? = null,
+    val transientFailureStreak: Int = 0,
+    val blockedCode: String? = null,
 ) {
+    val emphasizesPending: Boolean
+        get() = status == SyncUiStatus.PENDING && transientFailureStreak >= 3
+
     companion object {
         val LocalOnly = SyncUiState(SyncUiStatus.LOCAL_ONLY)
     }

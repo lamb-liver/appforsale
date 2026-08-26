@@ -18,6 +18,7 @@ internal object PosCatalogCoordinator {
     sealed interface CatalogCommand {
         data class DeleteProduct(val productId: String) : CatalogCommand
         data class DeleteBundle(val bundleId: String) : CatalogCommand
+        data class SetProductActive(val productId: String, val active: Boolean) : CatalogCommand
     }
 
     /** 通過規則後，交由 [com.lambliver.stallpos.data.PosPersistence.applyCatalog] 的寫入計畫（null = 不寫該鍵）。 */
@@ -37,6 +38,7 @@ internal object PosCatalogCoordinator {
     fun execute(state: CatalogState, command: CatalogCommand): CatalogResult = when (command) {
         is CatalogCommand.DeleteProduct -> prepareDeleteProduct(state, command.productId)
         is CatalogCommand.DeleteBundle -> prepareDeleteBundle(state, command.bundleId)
+        is CatalogCommand.SetProductActive -> prepareSetProductActive(state, command.productId, command.active)
     }
 
     fun prepareDeleteProduct(state: CatalogState, productId: String): CatalogResult {
@@ -52,6 +54,24 @@ internal object PosCatalogCoordinator {
             CatalogPersistPlan(
                 products = updatedProducts,
                 cart = updatedCart,
+            ),
+        )
+    }
+
+    fun prepareSetProductActive(state: CatalogState, productId: String, active: Boolean): CatalogResult {
+        val product = state.products.firstOrNull { it.id == productId } ?: return CatalogResult.Ignored
+        if (!active) {
+            val refs = state.bundles.filter { bundle -> bundle.components.any { it.productId == productId } }
+            if (refs.isNotEmpty()) {
+                return CatalogResult.UserMessage(
+                    "「${product.name}」正被套組 ${refs.joinToString { it.name }} 使用",
+                )
+            }
+        }
+        return CatalogResult.Ready(
+            CatalogPersistPlan(
+                products = state.products.map { if (it.id == productId) it.copy(isActive = active) else it },
+                cart = if (active) null else cartWithoutDeletedCatalogItem(state.cart, productId = productId),
             ),
         )
     }

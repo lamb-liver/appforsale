@@ -116,6 +116,7 @@ internal object PosCartCoordinator {
         qty: Int,
     ): MutationResult {
         val product = products.find { it.id == productId } ?: return MutationResult.Ignored
+        if (!product.isActive && qty > 0) return MutationResult.Blocked("此商品已停用")
         val mut = cart.products.toMutableMap()
         if (qty <= 0) {
             mut.remove(productId)
@@ -130,7 +131,7 @@ internal object PosCartCoordinator {
         val maxFromBundles = posMaxProductQtyAllowedInSingles(productId, mut, cart.bundles, products, bundles)
         val ceiling = minOf(maxAllowed, maxFromBundles)
         val clamped = qty.coerceAtMost(ceiling)
-        val toast = if (clamped < qty) listOf("已達庫存或可搭配套組之上限") else emptyList()
+        val toast = if (clamped < qty) listOf("庫存不夠了") else emptyList()
         mut[productId] = clamped
         return MutationResult.Applied(PosCart(mut, cart.bundles), toast)
     }
@@ -144,7 +145,7 @@ internal object PosCartCoordinator {
     ): MutationResult {
         val bundle = bundles.find { it.id == bundleId } ?: return MutationResult.Ignored
         if (!posValidateBundleComponents(products, bundle)) {
-            return MutationResult.Blocked("套組成分異常，請重新編輯套組")
+            return MutationResult.Blocked("套組內容有問題，請先改套組")
         }
         val mut = cart.bundles.toMutableMap()
         if (qty <= 0) {

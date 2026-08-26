@@ -85,12 +85,12 @@ internal fun DashboardBottomSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                "今日儀表板",
+                "今日明細",
                 style      = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Black,
             )
             Text(
-                "總營業額（含小費）",
+                "今日營收（含小費）",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

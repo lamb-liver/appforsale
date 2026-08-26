@@ -26,8 +26,22 @@ class PosBackupSafAdapter(
         withContext(Dispatchers.IO) {
             runCatching {
                 resolver.openInputStream(uri)?.use { inp ->
-                    inp.readBytes().toString(Charsets.UTF_8)
+                    val buffer = ByteArray(8 * 1024)
+                    val out = java.io.ByteArrayOutputStream()
+                    var total = 0
+                    while (true) {
+                        val n = inp.read(buffer)
+                        if (n < 0) break
+                        total += n
+                        if (total > MAX_BACKUP_BYTES) error("備份檔太大")
+                        out.write(buffer, 0, n)
+                    }
+                    out.toString(Charsets.UTF_8.name())
                 } ?: error("無法讀取檔案")
             }
         }
+
+    companion object {
+        const val MAX_BACKUP_BYTES = 8 * 1024 * 1024
+    }
 }

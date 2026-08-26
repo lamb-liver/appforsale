@@ -1,22 +1,15 @@
 package com.lambliver.stallpos.ui.pos
 
 import android.net.Uri
-import androidx.activity.ComponentActivity
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.heightIn
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lambliver.stallpos.domain.*
 import com.lambliver.stallpos.ui.PosViewModel
+import com.lambliver.stallpos.ui.runIntegrityCheck
 import com.lambliver.stallpos.ui.dialog.*
 import com.lambliver.stallpos.ui.feedback.PosFeedbackManager
 import com.lambliver.stallpos.ui.sponsor.SponsorDeveloperBottomSheet
@@ -64,11 +57,41 @@ internal fun PosAppOverlays(
     onGoogleSignIn: () -> Unit,
     onCopyDiagnostics: () -> Unit,
     onShareDiagnostics: () -> Unit,
+    onExportBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
 ) {
     SponsorDeveloperBottomSheet(
         visible = sheetOverlay == PosSheetOverlay.Sponsor,
         onDismiss = onDismissSponsorSheet,
     )
+
+    if (sheetOverlay == PosSheetOverlay.Settings) {
+        val extraLargeText by vm.extraLargeTextFlow.collectAsStateWithLifecycle(initialValue = false)
+        val hapticEnabled by vm.hapticEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
+        val soundEnabled by vm.soundEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
+        val backupNeeded by vm.backupReminderVisible.collectAsStateWithLifecycle()
+        val latestVersionTag by vm.latestVersionTag.collectAsStateWithLifecycle()
+        val checkDataMessage by vm.checkDataMessage.collectAsStateWithLifecycle()
+        PosSettingsSheet(
+            backupNeeded = backupNeeded,
+            extraLargeText = extraLargeText,
+            hapticEnabled = hapticEnabled,
+            soundEnabled = soundEnabled,
+            latestVersionTag = latestVersionTag,
+            checkDataMessage = checkDataMessage,
+            inactiveProducts = uiState.products.filter { !it.isActive },
+            onDismiss = onDismissSponsorSheet,
+            onExportBackup = onExportBackup,
+            onRestoreBackup = onRestoreBackup,
+            onSnoozeBackup = vm::snoozeBackupReminder,
+            onCheckData = { vm.runIntegrityCheck() },
+            onExtraLargeTextChange = vm::setExtraLargeText,
+            onHapticEnabledChange = vm::setHapticEnabled,
+            onSoundEnabledChange = vm::setSoundEnabled,
+            onReactivateProduct = { vm.onEvent(PosEvent.SetProductActive(it.id, true)) },
+            onReportToDeveloper = onShareDiagnostics,
+        )
+    }
 
     if (sheetOverlay == PosSheetOverlay.LocalOperations) {
         LocalOperationsBottomSheet(
@@ -126,6 +149,10 @@ internal fun PosAppOverlays(
             onDelete = {
                 onDismissProductSheet()
                 vm.onEvent(PosEvent.ShowDialog(DialogState.DeleteProduct(product)))
+            },
+            onDeactivate = {
+                onDismissProductSheet()
+                vm.onEvent(PosEvent.SetProductActive(product.id, false))
             },
             onAdjustStock = {
                 onStockEditProductId(product.id)
@@ -263,93 +290,19 @@ internal fun PosAppOverlays(
     }
 
     if (showExitConfirmDialog) {
-        val context = LocalContext.current
-        AlertDialog(
-            onDismissRequest = onDismissExitConfirm,
-            title = {
-                Text(
-                    text = "離開應用程式？",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-            },
-            text = {
-                Text(
-                    text = "將返回主畫面。結帳前資料會依現有設定寫回本機（含購物車防抖儲存）。",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.92f),
-                )
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = onDismissExitConfirm,
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) {
-                    Text("繼續使用", fontWeight = FontWeight.SemiBold)
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDismissExitConfirm()
-                        (context as? ComponentActivity)?.finish()
-                    },
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) {
-                    Text(
-                        "離開",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            },
-        )
+        ExitConfirmDialog(onDismiss = onDismissExitConfirm)
     }
-
     if (showNonCashVoidConfirm) {
-        AlertDialog(
-            onDismissRequest = onDismissNonCashVoidConfirm,
-            title = { Text("作廢非現金交易？") },
-            text = {
-                Text("這筆為非現金付款。StallPOS 只會作廢本機紀錄並補回庫存，不會自動退回外部款項。")
-            },
-            confirmButton = {
-                TextButton(onClick = onConfirmNonCashVoid) {
-                    Text("確定作廢", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = { TextButton(onClick = onDismissNonCashVoidConfirm) { Text("取消") } },
+        NonCashVoidConfirmDialog(
+            onDismiss = onDismissNonCashVoidConfirm,
+            onConfirm = onConfirmNonCashVoid,
         )
     }
-
     pendingRestoreUri?.let { uri ->
-        AlertDialog(
-            onDismissRequest = onDismissRestoreConfirm,
-            title = { Text("還原備份") },
-            text = {
-                Text(
-                    "將以備份檔完整覆寫目前商品目錄、分類、套組、購物車、銷售紀錄與統計。\n\n此操作無法復原，確定繼續？",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.88f),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onConfirmRestore(uri)
-                        onDismissRestoreConfirm()
-                    },
-                ) {
-                    Text(
-                        "確定還原",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissRestoreConfirm) { Text("取消") }
-            },
+        RestoreBackupConfirmDialog(
+            uri = uri,
+            onDismiss = onDismissRestoreConfirm,
+            onConfirm = onConfirmRestore,
         )
     }
 }

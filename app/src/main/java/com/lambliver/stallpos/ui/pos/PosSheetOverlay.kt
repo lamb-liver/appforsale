@@ -6,4 +6,5 @@ internal enum class PosSheetOverlay {
     Dashboard,
     LocalOperations,
     Sponsor,
+    Settings,
 }
