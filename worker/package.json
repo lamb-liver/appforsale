@@ -6,6 +6,7 @@
     "cf-typegen": "wrangler types --env-file .env.example",
     "typecheck": "npm run cf-typegen && tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
     "test": "vitest run",
+    "pentest:staging": "node scripts/staging-pentest.mjs",
     "restore-drill": "bash scripts/restore-drill.sh",
     "check": "npm run typecheck && npm test"
   },

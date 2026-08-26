@@ -37,5 +37,40 @@
   ],
   "triggers": {
     "crons": ["17 3 * * *"]
+  },
+  "env": {
+    "staging": {
+      "name": "stallpos-v2-staging",
+      "vars": {
+        "GOOGLE_CLIENT_IDS": "stallpos-staging.apps.googleusercontent.com",
+        "DASHBOARD_GOOGLE_CLIENT_ID": "stallpos-staging.apps.googleusercontent.com"
+      },
+      "ratelimits": [
+        {
+          "name": "AUTH_RATE_LIMITER",
+          "namespace_id": "204211",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "204212",
+          "simple": { "limit": 120, "period": 60 }
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "POS_DB",
+          "database_name": "stallpos-pos-staging",
+          "database_id": "ac543e59-74d2-423d-9ed9-e505652114a9",
+          "migrations_dir": "migrations/pos"
+        },
+        {
+          "binding": "DELETION_DB",
+          "database_name": "stallpos-deletion-staging",
+          "database_id": "c391014a-e286-4dc9-bcf7-0f479a9563f5",
+          "migrations_dir": "migrations/deletion"
+        }
+      ]
+    }
   }
 }
