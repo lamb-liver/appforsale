@@ -1,6 +1,6 @@
 # 小攤位 · 市集 POS
 
-**版本：v2.1.2**（`VERSION` · `versionName`）
+**版本：v2.1.3**（`VERSION` · `versionName`）
 
 **離線優先的 Android 市集 POS**：快選結帳、活動庫存、雲端備份／換機恢復，以及唯讀活動分析。
 
@@ -132,7 +132,7 @@ v2.1.1 發布 gate（2026-08-26）：Android unit／lint／API 35 instrumented�
 | Android Auto Backup／D2D | 不支援；Manifest 與 Android 11／12+ 規則均排除 App data |
 | Release APK | 永久 production certificate 簽署；certificate fingerprint 見 `RELEASE_CERT_SHA256` |
 
-**正式版本**：[下載 StallPOS v2.1.2 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.2/StallPOS-2.1.2.apk) · [開啟唯讀 Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
+**正式版本**：[下載 StallPOS v2.1.3 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.3/StallPOS-2.1.3.apk) · [開啟唯讀 Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
 
 PR 與 `main` push 會執行 unit、lint、debug build 與 API 35 instrumented tests。Repository 必須先由 maintainer 啟用 Immutable Releases；`v*` tag 通過版本、main ancestry、CHANGELOG 與 Release collision 驗證後，才會建立 signed APK、APK SHA-256、draft Release，逐 byte 核對 assets，並在發布後驗證 `immutable=true`。既有 tag 若只因 pipeline 基礎設施失敗，可由手動入口重跑同一 tag，不得移動 tag。詳見 [android.yml](.github/workflows/android.yml) 與 [distribution.md](docs/distribution.md)。
 

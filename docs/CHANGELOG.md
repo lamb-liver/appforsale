@@ -2,6 +2,20 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [2.1.3] - 2026-08-26
+
+### Added
+
+- 設定 BottomSheet：檢查資料、備份提醒、大字體、停用商品、版本、回報給開發者
+- 遷移後 IntegrityAudit 對帳；CI 跑同一組 fixture
+- Worker JSON／CSV 安全標頭、備份與版本查詢大小上限、CSV 公式中性化
+- 部署時清掉歷史寫入的 Google email
+
+### Changed
+
+- 同步文案改成攤販用語；戶外高對比配色
+- 商品改停用而不刪除
+
 ## [2.1.2] - 2026-08-26
 
 ### Changed
@@ -164,6 +178,7 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[2.1.3]: https://github.com/lamb-liver/appforsale/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/lamb-liver/appforsale/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/lamb-liver/appforsale/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/lamb-liver/appforsale/compare/v2.0.0...v2.1.0
