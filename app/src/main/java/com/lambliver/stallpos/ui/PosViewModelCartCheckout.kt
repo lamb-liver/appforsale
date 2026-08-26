@@ -165,10 +165,10 @@ internal fun PosViewModel.undoCheckout() {
             posStore.undoLastCheckout()
             posCartMemory.value = posStore.cartFlow.first()
             PosOpsLog.checkoutUndone(txCount = posUiState.value.txCount)
-            emitToast("已復原上一筆結帳")
+            emitToast("已作廢上一筆結帳")
         } catch (e: Throwable) {
             Log.e(PosViewModel.LOG_TAG, "undoCheckout failed", e)
-            emitToast("復原失敗，請再試一次", PosToastSeverity.Error)
+            emitToast("作廢失敗，請再試一次", PosToastSeverity.Error)
         }
     }
 }

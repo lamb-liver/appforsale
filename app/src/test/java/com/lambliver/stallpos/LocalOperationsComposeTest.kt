@@ -65,6 +65,6 @@ class LocalOperationsComposeTest {
             }
         }
         composeRule.onNodeWithText("網路錯誤").assertIsDisplayed()
-        composeRule.onNodeWithText("有商品成本未知", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("有商品沒填成本", substring = true).assertIsDisplayed()
     }
 }

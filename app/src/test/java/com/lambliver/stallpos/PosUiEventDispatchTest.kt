@@ -14,6 +14,7 @@ import com.lambliver.stallpos.ui.PosViewModel
 import com.lambliver.stallpos.ui.pos.PosSheetOverlay
 import com.lambliver.stallpos.ui.pos.PosUiEvent
 import com.lambliver.stallpos.ui.pos.toSheetOverlayOrNull
+import com.lambliver.stallpos.ui.pos.attentionText
 import com.lambliver.stallpos.ui.pos.displayText
 import com.lambliver.stallpos.ui.pos.lastSyncText
 import com.lambliver.stallpos.ui.pos.requiresNonCashVoidWarning
@@ -65,14 +66,17 @@ class PosUiEventDispatchTest {
 
     @Test
     fun syncState_allPlaceholdersHaveDeterministicText() {
-        assertEquals("本機模式（未啟用雲端同步）", SyncUiState.LocalOnly.displayText())
-        assertEquals("正在確認雲端同步狀態…", SyncUiState(SyncUiStatus.LOADING).displayText())
-        assertEquals("已啟用，尚未完成第一次同步", SyncUiState(SyncUiStatus.SYNCED).displayText())
+        assertEquals("資料只在這支手機", SyncUiState.LocalOnly.displayText())
+        assertEquals("正在確認同步…", SyncUiState(SyncUiStatus.LOADING).displayText())
+        assertEquals("已登入，等待第一次同步", SyncUiState(SyncUiStatus.SYNCED).displayText())
         assertEquals("已同步", SyncUiState(SyncUiStatus.SYNCED, lastSyncedAtMillis = 1L).displayText())
         assertEquals(null, SyncUiState.LocalOnly.lastSyncText())
-        assertEquals("尚未有成功同步紀錄", SyncUiState(SyncUiStatus.SYNCED).lastSyncText())
-        assertEquals("12 筆待同步", SyncUiState(SyncUiStatus.PENDING, pendingCount = 12).displayText())
-        assertEquals("2 筆需要處理", SyncUiState(SyncUiStatus.BLOCKED, blockedCount = 2).displayText())
+        assertEquals(null, SyncUiState.LocalOnly.attentionText())
+        assertEquals(null, SyncUiState(SyncUiStatus.SYNCED, lastSyncedAtMillis = 1L).attentionText())
+        assertEquals("還沒成功上傳過", SyncUiState(SyncUiStatus.SYNCED).lastSyncText())
+        assertEquals("12 筆還沒上傳", SyncUiState(SyncUiStatus.PENDING, pendingCount = 12).displayText())
+        assertEquals("12 筆還沒上傳", SyncUiState(SyncUiStatus.PENDING, pendingCount = 12).attentionText())
+        assertEquals("2 筆同步失敗，需要處理", SyncUiState(SyncUiStatus.BLOCKED, blockedCount = 2).displayText())
         assertEquals("網路錯誤", SyncUiState(SyncUiStatus.ERROR, message = "網路錯誤").displayText())
     }
 

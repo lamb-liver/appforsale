@@ -74,7 +74,7 @@ internal fun PosAppShell(
         TourStep("快選商品", "點擊加入購物車；長按可編輯、調整庫存或刪除；可設定追蹤庫存與商品分類", tourBounds.productRow.value),
         TourStep("套用折扣", "點畫面下方「%」開啟折扣；可選快捷或自訂百分比／金額", tourBounds.discountBtn.value),
         TourStep("自訂金額", "點畫面下方「自訂金額」列開啟鍵盤；可單獨結帳或搭配快選合計", tourBounds.numpad.value),
-        TourStep("儀表與匯出", "右側可看今日儀表板；齒輪可新增商品／套組、備份／還原；檔案圖示匯出 CSV", tourBounds.statsRow.value),
+        TourStep("儀表與匯出", "右側可看今日營收明細；齒輪可新增商品、管活動庫存、備份；檔案圖示匯出 CSV", tourBounds.statsRow.value),
     )
 
     var catalogTab by rememberSaveable { mutableStateOf(CatalogTab.Products) }
@@ -91,7 +91,7 @@ internal fun PosAppShell(
             numpadExpanded = false
             val result = snackbarHostState.showSnackbar(
                 message = "結帳成功",
-                actionLabel = "復原",
+                actionLabel = "作廢",
                 duration = SnackbarDuration.Short,
             )
             if (result == SnackbarResult.ActionPerformed) {

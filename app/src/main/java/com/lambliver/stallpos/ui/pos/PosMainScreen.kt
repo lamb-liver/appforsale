@@ -82,22 +82,19 @@ internal fun PosMainScreen(
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    Text(
-                        text = "雲端同步",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = uiState.sync.displayText(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    uiState.sync.lastSyncText()?.let {
+                    uiState.sync.attentionText()?.let { attention ->
                         Text(
-                            text = it,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = attention,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (
+                                uiState.sync.status == SyncUiStatus.BLOCKED ||
+                                uiState.sync.status == SyncUiStatus.ERROR
+                            ) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         )
                     }
                 }
@@ -125,7 +122,7 @@ internal fun PosMainScreen(
                     IconButton(
                         onClick = { onSettingsMenuExpandedChange(true) },
                         modifier = Modifier.size(48.dp),
-                    ) { Icon(Icons.Default.Settings, contentDescription = "資料備份與設定") }
+                    ) { Icon(Icons.Default.Settings, contentDescription = "設定") }
                     DropdownMenu(
                         expanded = settingsMenuExpanded,
                         onDismissRequest = { onSettingsMenuExpandedChange(false) },
@@ -166,7 +163,7 @@ internal fun PosMainScreen(
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("震動回饋") },
+                            text = { Text(if (hapticEnabled) "震動回饋　開" else "震動回饋　關") },
                             leadingIcon = {
                                 if (hapticEnabled) {
                                     Icon(Icons.Default.Check, contentDescription = null)
@@ -175,7 +172,7 @@ internal fun PosMainScreen(
                             onClick = { onHapticEnabledChange(!hapticEnabled) },
                         )
                         DropdownMenuItem(
-                            text = { Text("音效回饋") },
+                            text = { Text(if (soundEnabled) "音效回饋　開" else "音效回饋　關") },
                             leadingIcon = {
                                 if (soundEnabled) {
                                     Icon(Icons.Default.Check, contentDescription = null)

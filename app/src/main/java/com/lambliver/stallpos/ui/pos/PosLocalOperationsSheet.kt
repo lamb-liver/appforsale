@@ -20,28 +20,35 @@ import java.util.Date
 import java.util.Locale
 
 internal fun SyncUiState.displayText(): String = when (status) {
-    SyncUiStatus.LOCAL_ONLY -> "本機模式（未啟用雲端同步）"
-    SyncUiStatus.LOADING -> "正在確認雲端同步狀態…"
-    SyncUiStatus.SYNCED -> if (lastSyncedAtMillis == null) "已啟用，尚未完成第一次同步" else "已同步"
-    SyncUiStatus.PENDING -> "$pendingCount 筆待同步"
-    SyncUiStatus.BLOCKED -> "$blockedCount 筆需要處理"
-    SyncUiStatus.ERROR -> message ?: "同步暫時失敗，將自動重試"
+    SyncUiStatus.LOCAL_ONLY -> "資料只在這支手機"
+    SyncUiStatus.LOADING -> "正在確認同步…"
+    SyncUiStatus.SYNCED -> if (lastSyncedAtMillis == null) "已登入，等待第一次同步" else "已同步"
+    SyncUiStatus.PENDING -> "$pendingCount 筆還沒上傳"
+    SyncUiStatus.BLOCKED -> "$blockedCount 筆同步失敗，需要處理"
+    SyncUiStatus.ERROR -> message ?: "同步暫時失敗，會自動再試"
 }
 
 internal fun SyncUiState.lastSyncText(): String? = when {
     status == SyncUiStatus.LOCAL_ONLY || status == SyncUiStatus.LOADING -> null
-    lastSyncedAtMillis != null -> "最後成功同步：${SimpleDateFormat("M/d HH:mm", Locale.getDefault()).format(Date(lastSyncedAtMillis))}"
-    else -> "尚未有成功同步紀錄"
+    lastSyncedAtMillis != null -> "上次成功：${SimpleDateFormat("M/d HH:mm", Locale.getDefault()).format(Date(lastSyncedAtMillis))}"
+    else -> "還沒成功上傳過"
+}
+
+internal fun SyncUiState.attentionText(): String? = when (status) {
+    SyncUiStatus.PENDING -> "$pendingCount 筆還沒上傳"
+    SyncUiStatus.BLOCKED -> "$blockedCount 筆同步失敗"
+    SyncUiStatus.ERROR -> message ?: "同步暫時失敗"
+    else -> null
 }
 
 private enum class InventoryUiAction(val label: String) {
-    ALLOCATE("調撥至活動"),
-    RETURN("退回 GENERAL"),
-    GENERAL_ADD("GENERAL 盤增"),
-    GENERAL_REMOVE("GENERAL 盤減"),
-    GENERAL_DAMAGE("GENERAL 損壞"),
-    EVENT_ADD("活動盤增"),
-    EVENT_DAMAGE("活動損壞"),
+    ALLOCATE("調到現場"),
+    RETURN("退回總倉"),
+    GENERAL_ADD("總倉盤增"),
+    GENERAL_REMOVE("總倉盤減"),
+    GENERAL_DAMAGE("總倉損壞"),
+    EVENT_ADD("現場盤增"),
+    EVENT_DAMAGE("現場損壞"),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,20 +82,23 @@ internal fun LocalOperationsBottomSheet(
         ) {
             item {
                 Text("活動與庫存", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                Text("雲端同步", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("雲端備份", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
                     uiState.sync.displayText(),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 uiState.sync.lastSyncText()?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                OutlinedButton(
-                    onClick = onGoogleSignIn,
-                    enabled = cloudLoginConfigured,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) {
-                    Text(if (cloudLoginConfigured) "使用 Google 啟用雲端同步" else "雲端同步尚未設定")
+                if (uiState.sync.status == SyncUiStatus.LOCAL_ONLY) {
+                    OutlinedButton(
+                        onClick = onGoogleSignIn,
+                        enabled = cloudLoginConfigured,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) {
+                        Text(if (cloudLoginConfigured) "使用 Google 登入，方便換機" else "這版尚未接上雲端")
+                    }
                 }
+                Text("診斷資訊給客服用，不含帳號或交易內容", style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onCopyDiagnostics, modifier = Modifier.weight(1f)) { Text("複製診斷資訊") }
                     OutlinedButton(onClick = onShareDiagnostics, modifier = Modifier.weight(1f)) { Text("分享診斷資訊") }
@@ -98,7 +108,7 @@ internal fun LocalOperationsBottomSheet(
             if (uiState.products.any { it.cost == null }) {
                 item {
                     Text(
-                        "有商品成本未知，毛利會標示為不完整，不會把未知當作 0。",
+                        "有商品沒填成本，毛利會標「不完整」，空白不會當成 0 元。",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -107,7 +117,7 @@ internal fun LocalOperationsBottomSheet(
 
             item { SectionTitle("活動") }
             if (uiState.events.isEmpty()) {
-                item { Text("尚未建立活動，本機交易使用 GENERAL 庫存。") }
+                item { Text("尚未建立活動，結帳會從總倉庫存扣除。") }
             } else {
                 items(uiState.events, key = { it.id }) { event ->
                     EventRow(event, onEvent)
@@ -215,7 +225,7 @@ private fun EventRow(event: MarketEvent, onEvent: (PosEvent) -> Unit) {
                 Text(event.name, Modifier.weight(1f), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(event.status.displayName(), color = MaterialTheme.colorScheme.primary)
             }
-            Text("${event.code} · ${event.timezone}${event.location.takeIf(String::isNotBlank)?.let { " · $it" }.orEmpty()}")
+            event.location.takeIf(String::isNotBlank)?.let { Text(it) }
             when (event.status) {
                 MarketEventStatus.PLANNED -> Button(
                     onClick = { onEvent(PosEvent.ChangeMarketEventStatus(event.id, MarketEventStatus.ACTIVE)) },
@@ -244,7 +254,7 @@ private fun InventoryOperationRow(
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(product.name, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("GENERAL $generalQuantity · 活動 $eventQuantity · 成本 ${product.cost?.toString() ?: "未知"}")
+            Text("總倉 $generalQuantity · 現場 $eventQuantity · 成本 ${product.cost?.toString() ?: "未知"}")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = quantityText,
@@ -298,7 +308,7 @@ private fun MarketEventType.displayName() = when (this) {
 }
 
 private fun MarketEventStatus.displayName() = when (this) {
-    MarketEventStatus.PLANNED -> "已規劃"
+    MarketEventStatus.PLANNED -> "未開始"
     MarketEventStatus.ACTIVE -> "進行中"
     MarketEventStatus.CLOSED -> "已結束"
 }
