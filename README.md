@@ -2,6 +2,8 @@
 
 **版本：v2.1.3**（`VERSION` · `versionName`）
 
+安裝說明：https://lambliver.dev/projects/offline-pos-android
+
 **離線優先的 Android 市集 POS**：快選結帳、活動庫存、雲端備份／換機恢復，以及唯讀活動分析。
 
 > **v2 Local-first**：加密 Room v2 是裝置端真相源；離線交易先完成，再由 Outbox 同步至 Cloudflare Worker。雲端帳號與營運資料不因未活動自動刪除，只由使用者主動 Cloud Delete／Account Delete 移除。
