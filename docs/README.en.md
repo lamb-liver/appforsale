@@ -2,6 +2,8 @@
 
 **Version: v2.1.3** (`VERSION` · `versionName`)
 
+Install: https://lambliver.dev/projects/offline-pos-android
+
 An **offline-first Android market POS** with quick checkout, event inventory, up to four phones checking out on one account, cloud backup/device recovery, and a read-only event dashboard.
 
 > **v2 Local-first**: encrypted Room v2 is the on-device source of truth. Transactions complete offline, then an Outbox synchronizes them through a Cloudflare Worker. Inactivity never deletes cloud account or business data; only explicit Cloud Delete or Account Delete does.

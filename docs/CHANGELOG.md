@@ -6,7 +6,7 @@
 
 ### Added
 
-- 同一帳號最多 4 台 ACTIVE 手機並行結帳；第 5 台 `DEVICE_LIMIT`
+- 同一帳號最多 4 支 ACTIVE 手機並行結帳；第 5 支 `DEVICE_LIMIT`
 - 接手（`forceDevice`）退役其他所有手機；已退役不可自行加入
 - 新機收據短碼用 deviceId 後 5 hex，避開保留字 `A`
 - 上傳失敗的銷貨在本機標「待處理」；退役後鎖結帳
