@@ -5,6 +5,8 @@ import { isUuid } from "./validation";
 
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 const ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+/** ponytail: hardcoded cap; raise the constant if a stall needs more than 4 phones. */
+export const MAX_ACTIVE_DEVICES = 4;
 type GoogleJwk = JsonWebKey & { kid?: string; kty?: string; alg?: string; use?: string };
 type LoginIntent = "SIGN_IN" | "REENABLE" | "CREATE_AFTER_DELETE";
 let jwksCache: { expiresAt: number; keys: GoogleJwk[] } | null = null;
@@ -69,20 +71,36 @@ export async function handleGoogleAuth(request: Request, env: Env, requestId: st
   if (conflictingOwner && conflictingOwner.user_id !== user.id) {
     throw new HttpError(409, "DEVICE_CONFLICT", "Device is already registered to another account.");
   }
-  const active = await env.POS_DB.prepare("SELECT id FROM devices WHERE user_id = ? AND status = 'ACTIVE' LIMIT 1")
-    .bind(user.id).first<{ id: string }>();
-  if (active && active.id !== deviceId && body.forceDevice !== true) {
-    throw new HttpError(409, "DEVICE_TRANSFER_REQUIRED", "Transfer or force-retire the active device first.");
+
+  const self = await env.POS_DB.prepare("SELECT status FROM devices WHERE id = ?")
+    .bind(deviceId).first<{ status: string }>();
+  if (self?.status === "RETIRED" && body.forceDevice !== true) {
+    throw new HttpError(409, "DEVICE_RETIRED", "Device is retired.");
+  }
+
+  const otherActive = await env.POS_DB.prepare(
+    "SELECT id FROM devices WHERE user_id = ? AND status = 'ACTIVE' AND id != ?",
+  ).bind(user.id, deviceId).all<{ id: string }>();
+  const otherIds = otherActive.results.map((row) => row.id);
+  const isNewJoin = self?.status !== "ACTIVE";
+  const additionalDevice = isNewJoin && otherIds.length > 0 && body.forceDevice !== true;
+
+  // ponytail: TOCTOU cap (SELECT then INSERT). Stall scale; add a partial unique/count guard if abused.
+  if (additionalDevice && otherIds.length >= MAX_ACTIVE_DEVICES) {
+    throw new HttpError(409, "DEVICE_LIMIT", "Active device limit reached.");
   }
 
   const nowUtc = new Date().toISOString();
   const credentials = await credentialsFor(env.POS_DB, user.id, deviceId, nowUtc);
   const statements: D1PreparedStatement[] = [];
-  if (active && active.id !== deviceId) {
+  if (body.forceDevice === true && otherIds.length > 0) {
     statements.push(
-      env.POS_DB.prepare("UPDATE devices SET status = 'RETIRED', retired_at_utc = ? WHERE id = ?").bind(nowUtc, active.id),
-      env.POS_DB.prepare("UPDATE refresh_credentials SET revoked_at_utc = ? WHERE device_id = ? AND revoked_at_utc IS NULL")
-        .bind(nowUtc, active.id),
+      env.POS_DB.prepare(
+        "UPDATE devices SET status = 'RETIRED', retired_at_utc = ? WHERE user_id = ? AND status = 'ACTIVE' AND id != ?",
+      ).bind(nowUtc, user.id, deviceId),
+      env.POS_DB.prepare(
+        "UPDATE refresh_credentials SET revoked_at_utc = ? WHERE user_id = ? AND revoked_at_utc IS NULL AND device_id != ?",
+      ).bind(nowUtc, user.id, deviceId),
     );
   }
   statements.push(
@@ -95,11 +113,27 @@ export async function handleGoogleAuth(request: Request, env: Env, requestId: st
     ...credentials.statements,
     env.POS_DB.prepare(
       `INSERT INTO audit_logs (id, user_id, device_id, request_id, action, occurred_at_utc)
-       VALUES (?, ?, ?, ?, 'AUTH_LOGIN', ?)`,
-    ).bind(crypto.randomUUID(), user.id, deviceId, requestId, nowUtc),
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      user.id,
+      deviceId,
+      requestId,
+      additionalDevice ? "AUTH_DEVICE_JOIN" : "AUTH_LOGIN",
+      nowUtc,
+    ),
   );
   await checkedBatch(env.POS_DB, statements);
-  return json({ requestId, ...credentials.response, userId: user.id, deviceId, cloudEpoch: user.cloud_epoch }, 200, requestId);
+  const activeDeviceCount = body.forceDevice === true ? 1 : otherIds.length + 1;
+  return json({
+    requestId,
+    ...credentials.response,
+    userId: user.id,
+    deviceId,
+    cloudEpoch: user.cloud_epoch,
+    additionalDevice,
+    activeDeviceCount,
+  }, 200, requestId);
 }
 
 export async function handleRefresh(request: Request, env: Env, requestId: string): Promise<Response> {
@@ -131,7 +165,17 @@ export async function handleRefresh(request: Request, env: Env, requestId: strin
   } catch {
     throw new HttpError(401, "UNAUTHORIZED", "Refresh credential was already consumed.");
   }
-  return json({ requestId, ...next.response, userId: row.user_id, deviceId: row.device_id, cloudEpoch: row.cloud_epoch }, 200, requestId);
+  const active = await env.POS_DB.prepare(
+    "SELECT COUNT(*) AS count FROM devices WHERE user_id=? AND status='ACTIVE'",
+  ).bind(row.user_id).first<{ count: number }>();
+  return json({
+    requestId,
+    ...next.response,
+    userId: row.user_id,
+    deviceId: row.device_id,
+    cloudEpoch: row.cloud_epoch,
+    activeDeviceCount: Number(active?.count ?? 0),
+  }, 200, requestId);
 }
 
 export async function authenticate(request: Request, env: Env): Promise<AuthContext> {

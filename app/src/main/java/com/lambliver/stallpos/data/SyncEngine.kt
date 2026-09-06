@@ -31,6 +31,7 @@ internal object SyncCloudKeys {
     const val TRANSFER_COMMIT_TOKEN = "sync_transfer_commit_token"
     const val RECENT_REQUEST_IDS = "sync_recent_request_ids"
     const val RECENT_ERROR_CODES = "sync_recent_error_codes"
+    const val ACTIVE_DEVICE_COUNT = "sync_active_device_count"
 }
 
 internal data class SyncHttpResponse(val status: Int, val body: String)
@@ -152,6 +153,7 @@ internal class SyncEngine(
                 markTransient(rows, "invalid sync response")
                 return SyncRunResult.RETRY
             }
+        rememberActiveDeviceCount(response.body)
         var retry = false
         var blocked = false
         val now = nowMillis()
@@ -189,6 +191,11 @@ internal class SyncEngine(
                 dao.markOutboxPending(listOf(row.operationId), message, nextAttempt(now, row.attemptCount), now)
             }
         }
+    }
+
+    private suspend fun rememberActiveDeviceCount(body: String) {
+        val count = runCatching { JSONObject(body).optInt("activeDeviceCount", 0) }.getOrDefault(0)
+        if (count > 0) dao.putCloudState(listOf(CloudStateEntity(SyncCloudKeys.ACTIVE_DEVICE_COUNT, count.toString())))
     }
 
     private suspend fun rememberDiagnostic(key: String, value: String) {
@@ -260,7 +267,7 @@ internal suspend fun configureSyncSession(
         database.v2Dao().putDeviceState(
             DeviceStateEntity(
                 deviceId = deviceId,
-                shortCode = previous?.shortCode ?: "A",
+                shortCode = previous?.shortCode ?: receiptShortCode(deviceId),
                 name = deviceName,
                 status = "ACTIVE",
                 cloudEpoch = cloudEpoch,

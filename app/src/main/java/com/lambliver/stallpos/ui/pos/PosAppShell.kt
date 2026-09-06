@@ -51,7 +51,7 @@ internal fun PosAppShell(
     feedback: PosFeedbackManager,
     backupReminderVisible: Boolean,
     cloudLoginConfigured: Boolean,
-    onGoogleSignIn: () -> Unit,
+    onGoogleSignIn: (forceDevice: Boolean) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current

@@ -167,6 +167,48 @@ describe("StallPOS v2 sync API", () => {
     expect(second.nextCursor).toBeNull();
   });
 
+  it("ACKs sales from two ACTIVE devices with distinct receipt numbers", async () => {
+    const deviceB = "20000000-0000-4000-8000-00000000000b";
+    const tokenB = "test-access-b";
+    await env.POS_DB.batch([
+      env.POS_DB.prepare(
+        `INSERT INTO devices (id, user_id, short_code, name, status, cloud_epoch, registered_at_utc, last_seen_at_utc)
+         VALUES (?, ?, 'B', 'Helper', 'ACTIVE', 1, '2026-08-24T00:00:00Z', '2026-08-24T00:00:00Z')`,
+      ).bind(deviceB, userId),
+      env.POS_DB.prepare(
+        `INSERT INTO sessions (token_hash, user_id, device_id, created_at_utc, expires_at_utc)
+         VALUES (?, ?, ?, '2026-08-24T00:00:00Z', '2099-01-01T00:00:00Z')`,
+      ).bind(await sha256(tokenB), userId, deviceB),
+    ]);
+    const saleA = cashSale("90000000-0000-4000-8000-0000000000a1", deviceId, "GENERAL-A-0001", "30000000-0000-4000-8000-0000000000a1");
+    const saleB = cashSale("90000000-0000-4000-8000-0000000000b1", deviceB, "GENERAL-9F3A-0001", "30000000-0000-4000-8000-0000000000b1");
+    expect(await sync(saleA)).toMatchObject({ results: [{ status: "ACK" }], activeDeviceCount: 2 });
+    const syncedB = await request("/v2/sync/batch", "POST", saleB, tokenB);
+    expect(syncedB.status).toBe(200);
+    expect(await syncedB.json()).toMatchObject({ results: [{ status: "ACK" }], activeDeviceCount: 2 });
+  });
+
+  it("blocks a second device from reusing the same receipt number", async () => {
+    const deviceB = "20000000-0000-4000-8000-00000000000c";
+    const tokenB = "test-access-c";
+    await env.POS_DB.batch([
+      env.POS_DB.prepare(
+        `INSERT INTO devices (id, user_id, short_code, name, status, cloud_epoch, registered_at_utc, last_seen_at_utc)
+         VALUES (?, ?, 'C', 'Helper', 'ACTIVE', 1, '2026-08-24T00:00:00Z', '2026-08-24T00:00:00Z')`,
+      ).bind(deviceB, userId),
+      env.POS_DB.prepare(
+        `INSERT INTO sessions (token_hash, user_id, device_id, created_at_utc, expires_at_utc)
+         VALUES (?, ?, ?, '2026-08-24T00:00:00Z', '2099-01-01T00:00:00Z')`,
+      ).bind(await sha256(tokenB), userId, deviceB),
+    ]);
+    const saleA = cashSale("90000000-0000-4000-8000-0000000000a2", deviceId, "GENERAL-A-0001", "30000000-0000-4000-8000-0000000000a2");
+    const saleB = cashSale("90000000-0000-4000-8000-0000000000c2", deviceB, "GENERAL-A-0001", "30000000-0000-4000-8000-0000000000c2");
+    expect(await sync(saleA)).toMatchObject({ results: [{ status: "ACK" }] });
+    const conflict = await request("/v2/sync/batch", "POST", saleB, tokenB);
+    expect(conflict.status).toBe(200);
+    expect(await conflict.json()).toMatchObject({ results: [{ status: "BLOCKED", code: "INVALID_DATA" }] });
+  });
+
   it("keeps deletion tombstones append-only in the separate D1 binding", async () => {
     await env.DELETION_DB.prepare(
       `INSERT INTO deletion_tombstones
@@ -178,7 +220,40 @@ describe("StallPOS v2 sync API", () => {
   });
 });
 
-async function sync(body: unknown): Promise<{ results: Array<Record<string, unknown>> }> {
+function cashSale(saleId: string, saleDeviceId: string, receiptNumber: string, operationId: string) {
+  return {
+    requestId: operationId.replace("30000000", "10000000"),
+    deviceId: saleDeviceId,
+    cloudEpoch: 1,
+    operations: [{
+      operationId,
+      category: "TRANSACTION",
+      entityType: "SALE",
+      entityId: saleId,
+      operationType: "APPEND",
+      payload: {
+        id: saleId,
+        deviceId: saleDeviceId,
+        eventId: null,
+        receiptNumber,
+        occurredAtUtc: "2026-08-29T03:15:00Z",
+        subtotal: 0,
+        discountType: null,
+        discountValue: null,
+        discountAmount: 0,
+        netAdjustment: 90,
+        finalTotal: 90,
+        tipAmount: 0,
+        paymentMethod: "CASH",
+        lines: [],
+        componentAllocations: [],
+        inventoryMovements: [],
+      },
+    }],
+  };
+}
+
+async function sync(body: unknown): Promise<{ results: Array<Record<string, unknown>>; activeDeviceCount?: number }> {
   const response = await request("/v2/sync/batch", "POST", body);
   expect(response.status).toBe(200);
   return response.json();

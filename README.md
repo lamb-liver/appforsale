@@ -4,7 +4,7 @@
 
 安裝說明：https://lambliver.dev/projects/offline-pos-android
 
-**離線優先的 Android 市集 POS**：快選結帳、活動庫存、雲端備份／換機恢復，以及唯讀活動分析。
+**離線優先的 Android 市集 POS**：快選結帳、活動庫存、同一帳號多機並行收款、雲端備份／換機恢復，以及唯讀活動分析。
 
 > **v2 Local-first**：加密 Room v2 是裝置端真相源；離線交易先完成，再由 Outbox 同步至 Cloudflare Worker。雲端帳號與營運資料不因未活動自動刪除，只由使用者主動 Cloud Delete／Account Delete 移除。
 
@@ -22,7 +22,7 @@
 | 操作回饋 | 震動 + 音效（加入購物車／結帳成功／錯誤）；設定選單可獨立開關；靜音／震動模式只震不響 |
 | 活動與報表 | Event 建立／開始／結束；唯讀 Web Dashboard 顯示營收、趨勢、商品、時段、付款、Bundle、庫存去化，以及可篩選／分頁的交易列表與 snapshot 明細 |
 | VOID | 保留原 Sale 並 append Void／庫存回補；重送只生效一次 |
-| 雲端同步／換機 | Google Login、Outbox 背景同步、裝置 transfer／forced retire、atomic bootstrap 與 Cloud epoch |
+| 雲端同步／多機 | Google Login、同一帳號最多 4 支手機並行結帳、Outbox 背景同步、接手退役其他機、換機 transfer、atomic bootstrap 與 Cloud epoch |
 | CSV 匯出 | Android 經 SAF 匯出有效交易；Web 依目前活動、付款與 ACTIVE／VOIDED 篩選匯出同一批交易 |
 | JSON 備份／還原 | 設定選單完整備份與還原（Room business data JSON exchange format） |
 | 診斷資訊 | 複製／分享版本、匿名裝置 ID、同步計數、最近 request ID 與錯誤碼；不含 token 或交易內容 |

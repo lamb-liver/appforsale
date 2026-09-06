@@ -16,6 +16,7 @@ import com.lambliver.stallpos.data.PosPersistSnapshot
 import com.lambliver.stallpos.data.PosPersistence
 import com.lambliver.stallpos.data.RoomPosPersistence
 import com.lambliver.stallpos.data.CloudAccountManager
+import com.lambliver.stallpos.data.CloudLifecycleException
 import com.lambliver.stallpos.domain.*
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
@@ -129,8 +130,24 @@ class PosViewModel @JvmOverloads constructor(
 
     /** 主畫面按「結帳」：鎖定金額快照，供 BottomSheet 與 [PosEvent.ConfirmCheckout] 共用。 */
     fun beginCheckoutSheet() {
-        val snap = CheckoutSheetPricingSnapshot.lockedFrom(posUiState.value)
+        val state = posUiState.value
+        if (state.sync.checkoutLocked) {
+            emitToastAsync(com.lambliver.stallpos.ui.pos.DEVICE_RETIRED_LOCK, PosToastSeverity.Error)
+            return
+        }
+        if (state.sync.activeDeviceCount > 1 && cartHasTrackedStock(state)) {
+            emitToastAsync(com.lambliver.stallpos.ui.pos.MULTI_DEVICE_STOCK_WARNING)
+        }
+        val snap = CheckoutSheetPricingSnapshot.lockedFrom(state)
         posUiState.update { it.copy(checkoutSheetSnapshot = snap) }
+    }
+
+    private fun cartHasTrackedStock(state: PosUiState): Boolean {
+        val tracked = state.products.filter { it.stock != null }.associateBy { it.id }
+        if (state.cart.products.any { (id, qty) -> qty > 0 && id in tracked }) return true
+        return state.bundles.any { bundle ->
+            (state.cart.bundles[bundle.id] ?: 0) > 0 && bundle.components.any { it.productId in tracked }
+        }
     }
 
     fun dismissCheckoutSheet() {
@@ -187,11 +204,27 @@ class PosViewModel @JvmOverloads constructor(
         backupReminderVisible.value = false
     }
 
-    internal suspend fun signInWithGoogleIdToken(idToken: String) {
+    internal suspend fun signInWithGoogleIdToken(idToken: String, forceDevice: Boolean = false) {
         val room = posStore as? RoomPosPersistence ?: error("Google login requires Room persistence")
         try {
-            CloudAccountManager(getApplication(), room).signIn(idToken)
-            emitToast("Google 雲端登入成功", PosToastSeverity.Info)
+            val result = CloudAccountManager(getApplication(), room).signIn(idToken, forceDevice = forceDevice)
+            if (result.additionalDevice) {
+                clearCart()
+                emitToast(com.lambliver.stallpos.ui.pos.MULTI_DEVICE_JOIN_TOAST, PosToastSeverity.Info)
+                if (posUiState.value.products.any { it.stock != null }) {
+                    posUiState.update { it.copy(dialogState = DialogState.MultiDeviceStockWarning) }
+                }
+            } else {
+                emitToast("Google 雲端登入成功", PosToastSeverity.Info)
+            }
+        } catch (e: CloudLifecycleException) {
+            Log.e(LOG_TAG, "Google cloud login blocked", e)
+            val message = when (e.code) {
+                "DEVICE_LIMIT" -> com.lambliver.stallpos.ui.pos.DEVICE_LIMIT_COPY
+                "DEVICE_RETIRED" -> com.lambliver.stallpos.ui.pos.DEVICE_RETIRED_LOCK
+                else -> "Google 雲端登入失敗：${e.message}"
+            }
+            emitToast(message, PosToastSeverity.Error)
         } catch (e: Throwable) {
             Log.e(LOG_TAG, "Google cloud login failed", e)
             emitToast("Google 雲端登入失敗：${e.message}", PosToastSeverity.Error)
@@ -211,9 +244,15 @@ class PosViewModel @JvmOverloads constructor(
 
     private fun startObserving() {
         viewModelScope.launch {
+            var lastActiveDeviceCount = 0
             combine(posStore.snapshot, posCartMemory, posStore.syncStateFlow) { storeSnap, cart, sync ->
                 storeSnap to buildUiState(storeSnap, cart, sync)
             }.collect { (storeSnap, newState) ->
+                val count = newState.sync.activeDeviceCount
+                if (lastActiveDeviceCount >= 1 && count > lastActiveDeviceCount) {
+                    emitToast("${com.lambliver.stallpos.ui.pos.NEW_DEVICE_JOINED_TOAST}（目前 ${count} 支）")
+                }
+                if (count > 0) lastActiveDeviceCount = count
                 posUiState.update { current ->
                     newState.copy(
                         dialogState = current.dialogState,

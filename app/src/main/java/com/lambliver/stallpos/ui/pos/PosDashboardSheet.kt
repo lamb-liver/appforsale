@@ -42,6 +42,7 @@ internal fun DashboardBottomSheet(
     allLogs: ImmutableList<SaleRecord>,
     reversals: ImmutableList<SaleReversal>,
     products:  ImmutableList<Product>,
+    blockedSaleIds: Set<String> = emptySet(),
     currency:  NumberFormat,
     onDismiss: () -> Unit,
 ) {
@@ -100,6 +101,14 @@ internal fun DashboardBottomSheet(
                 fontWeight = FontWeight.Black,
                 color      = MaterialTheme.colorScheme.primary,
             )
+            if (blockedSaleIds.isNotEmpty()) {
+                Text(
+                    "有 ${blockedSaleIds.size} 筆待處理：錢已收，雲端還沒入帳。請保持本機紀錄，不要刪。",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -155,9 +164,18 @@ internal fun DashboardBottomSheet(
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
-                                    "${sale.dateKey} · ${sale.paymentMethod.displayName}${if (sale.id in reversedSaleIds) " · 已作廢" else ""}",
+                                    "${sale.dateKey} · ${sale.paymentMethod.displayName}" +
+                                        when {
+                                            sale.id in reversedSaleIds -> " · 已作廢"
+                                            sale.id in blockedSaleIds -> " · 待處理"
+                                            else -> ""
+                                        },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (sale.id in reversedSaleIds) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (sale.id in reversedSaleIds || sale.id in blockedSaleIds) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
                                 )
                             }
                             Text(currency.format(sale.total + sale.tipAmount), fontWeight = FontWeight.Bold)
@@ -205,7 +223,7 @@ internal fun DashboardBottomSheet(
             )
             if (top3.isEmpty()) {
                 Text(
-                    "今日尚無銷售紀錄",
+                    "沒有可排名的商品",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {

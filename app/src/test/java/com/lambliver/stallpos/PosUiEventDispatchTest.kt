@@ -87,7 +87,7 @@ class PosUiEventDispatchTest {
         assertEquals("2 筆上傳失敗", SyncUiState(SyncUiStatus.BLOCKED, blockedCount = 2).displayText())
         assertEquals("2 筆上傳失敗", SyncUiState(SyncUiStatus.BLOCKED, blockedCount = 2).attentionText())
         assertEquals(
-            "這支手機已被換掉，請用現在登入的那支。",
+            "這支手機已被換掉或接手，無法再收款。請用還在用的那支，或在這支按「接手」。",
             SyncUiState(SyncUiStatus.BLOCKED, blockedCount = 1, blockedCode = "DEVICE_RETIRED").blockedReasonText(),
         )
         assertEquals("網路錯誤", SyncUiState(SyncUiStatus.ERROR, message = "網路錯誤").displayText())

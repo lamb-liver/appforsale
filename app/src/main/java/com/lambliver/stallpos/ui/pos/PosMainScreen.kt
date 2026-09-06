@@ -522,10 +522,18 @@ internal fun PosMainScreen(
             }
         }
 
+        if (uiState.sync.checkoutLocked) {
+            Text(
+                DEVICE_RETIRED_LOCK,
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
         PosCheckoutButton(
             displayAmount = uiState.checkoutSurfaceReceivablePreview,
             itemCount = uiState.cartItemCount,
-            enabled = uiState.checkoutGrandBeforeDiscount > 0,
+            enabled = uiState.checkoutGrandBeforeDiscount > 0 && !uiState.sync.checkoutLocked,
             onClick = { onUiEvent(PosUiEvent.BeginCheckout) },
             modifier = Modifier
                 .fillMaxWidth()

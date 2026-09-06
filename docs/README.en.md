@@ -2,7 +2,7 @@
 
 **Version: v2.1.3** (`VERSION` · `versionName`)
 
-An **offline-first Android market POS** with quick checkout, event inventory, cloud backup/device recovery, and a read-only event dashboard.
+An **offline-first Android market POS** with quick checkout, event inventory, up to four phones checking out on one account, cloud backup/device recovery, and a read-only event dashboard.
 
 > **v2 Local-first**: encrypted Room v2 is the on-device source of truth. Transactions complete offline, then an Outbox synchronizes them through a Cloudflare Worker. Inactivity never deletes cloud account or business data; only explicit Cloud Delete or Account Delete does.
 
@@ -20,7 +20,7 @@ An **offline-first Android market POS** with quick checkout, event inventory, cl
 | Haptic & sound | Tap / checkout success / error feedback; independent toggles in settings; silent & vibrate ringer modes = haptic only |
 | Events and reports | Event lifecycle plus a read-only web dashboard for revenue, trends, products, hours, payments, bundles, sell-through, and cursor-paged transaction snapshots |
 | VOID | Preserves the Sale and appends one idempotent Void with inventory restoration |
-| Cloud sync / transfer | Google Login, background Outbox sync, device transfer / forced retirement, atomic bootstrap, and cloud epochs |
+| Cloud sync / multi-device | Google Login, up to 4 ACTIVE phones checking out in parallel, background Outbox sync, takeover that retires the others, device transfer, atomic bootstrap, and cloud epochs |
 | CSV export | Android exports active transactions through SAF; Web exports the current event with the same payment and ACTIVE / VOIDED filters |
 | JSON backup / restore | Full Room business data in the existing JSON exchange format |
 | Diagnostics | Copy/share app version, anonymous device ID, sync counts, recent request IDs, and error codes without tokens or transaction content |

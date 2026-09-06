@@ -188,7 +188,10 @@ class PosStoreInstrumentedTest {
         assertEquals(event.id, meta.eventId)
         assertEquals(50L, meta.discountAmount)
         assertEquals(0L, meta.netAdjustment)
-        assertTrue(meta.receiptNumber.startsWith("${event.code}-A-"))
+        assertTrue(
+            "receipt ${meta.receiptNumber}",
+            meta.receiptNumber.matches(Regex("^${Regex.escape(event.code)}-[A-Z0-9]{5,8}-\\d{4}$")),
+        )
         val snapshot = database.v2Dao().saleLineSnapshots(sale.id).single()
         assertEquals(30L, snapshot.unitCostSnapshot)
         assertEquals(300L, snapshot.originalAmount)

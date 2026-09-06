@@ -219,7 +219,7 @@
       "required": ["id", "shortCode", "name", "status", "registeredAtUtc", "lastSeenAtUtc", "retiredAtUtc"],
       "properties": {
         "id": { "$ref": "#/$defs/uuid" },
-        "shortCode": { "type": "string", "pattern": "^[A-Z]{1,3}$" },
+        "shortCode": { "type": "string", "pattern": "^[A-Z0-9]{1,8}$" },
         "name": { "type": "string", "minLength": 1, "maxLength": 100 },
         "status": { "enum": ["ACTIVE", "RETIRED"] },
         "registeredAtUtc": { "$ref": "#/$defs/utc" },

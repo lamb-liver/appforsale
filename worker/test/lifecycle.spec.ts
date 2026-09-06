@@ -57,6 +57,50 @@ describe("device and deletion lifecycle", () => {
     expect(await oldRequest.json()).toMatchObject({ code: "DEVICE_RETIRED" });
   });
 
+  it("retires only the transfer source when another device is also ACTIVE", async () => {
+    const helper = "20000000-0000-4000-8000-000000000092";
+    await env.POS_DB.prepare(
+      `INSERT INTO devices (id,user_id,short_code,name,status,cloud_epoch,registered_at_utc,last_seen_at_utc)
+       VALUES (?,?,'helper','Helper','ACTIVE',1,'2026-08-24T00:00:00Z','2026-08-24T00:00:00Z')`,
+    ).bind(helper, userId).run();
+    const created = await api("/v2/devices/transfer", {}, accessToken);
+    const transferToken = (await created.json() as { transferToken: string }).transferToken;
+    const claimed = await api("/v2/devices/transfer/claim", {
+      transferToken,
+      deviceId: targetDevice,
+      deviceName: "Target",
+    });
+    const commitToken = (await claimed.json() as { commitToken: string }).commitToken;
+    expect((await api("/v2/devices/transfer/commit", { commitToken })).status).toBe(200);
+    const rows = await env.POS_DB.prepare(
+      "SELECT id, status FROM devices WHERE user_id=? ORDER BY id",
+    ).bind(userId).all<{ id: string; status: string }>();
+    const byId = Object.fromEntries(rows.results.map((row) => [row.id, row.status]));
+    expect(byId[sourceDevice]).toBe("RETIRED");
+    expect(byId[helper]).toBe("ACTIVE");
+    expect(byId[targetDevice]).toBe("ACTIVE");
+  });
+
+  it("rejects commit when the source device is already RETIRED", async () => {
+    const created = await api("/v2/devices/transfer", {}, accessToken);
+    const transferToken = (await created.json() as { transferToken: string }).transferToken;
+    const claimed = await api("/v2/devices/transfer/claim", {
+      transferToken,
+      deviceId: targetDevice,
+      deviceName: "Target",
+    });
+    const commitToken = (await claimed.json() as { commitToken: string }).commitToken;
+    await env.POS_DB.prepare(
+      "UPDATE devices SET status='RETIRED', retired_at_utc='2026-08-24T01:00:00Z' WHERE id=?",
+    ).bind(sourceDevice).run();
+    const committed = await api("/v2/devices/transfer/commit", { commitToken });
+    expect(committed.status).toBe(409);
+    expect(await committed.json()).toMatchObject({ code: "TRANSFER_INVALID" });
+    expect(await env.POS_DB.prepare(
+      "SELECT COUNT(*) AS count FROM devices WHERE user_id=? AND status='ACTIVE'",
+    ).bind(userId).first("count")).toBe(0);
+  });
+
   it("keeps the deletion barrier when POS cleanup fails, then reconciles it", async () => {
     await env.POS_DB.prepare(
       `CREATE TRIGGER fail_cloud_delete BEFORE UPDATE OF deleted_at_utc ON users

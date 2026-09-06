@@ -47,11 +47,16 @@ remain local `PENDING` and are not converted to permanent blocked data.
   `sub`; it returns a 15-minute access token plus a rotating refresh credential.
 - `POST /v2/auth/refresh` consumes exactly one refresh generation. Reusing a
   rotated credential fails.
-- Normal replacement uses `POST /v2/devices/transfer`, `/claim`, then `/commit`.
-  The old device remains `ACTIVE` until the new device has atomically stored and
-  validated bootstrap data.
-- Forced login must explicitly set `forceDevice`; the former device becomes
-  `RETIRED` and its pending local operations become blocked on its next request.
+- An account may have up to 4 `ACTIVE` devices. A new device joins with
+  `POST /v2/auth/google` without `forceDevice`. The 200 body may include
+  `additionalDevice` and `activeDeviceCount`. A fifth join returns `409 DEVICE_LIMIT`.
+- `RETIRED` devices cannot rejoin unless `forceDevice` is true (`409 DEVICE_RETIRED`).
+- `forceDevice` retires every other `ACTIVE` device (takeover). It is not required
+  to join as an additional cashier.
+- Normal 1:1 replacement uses `POST /v2/devices/transfer`, `/claim`, then `/commit`.
+  Commit fails with `TRANSFER_INVALID` if the source is no longer `ACTIVE`.
+- After the retired device's next sync failure, checkout must lock. Local BLOCKED
+  sales stay on the device and are shown as pending (`待處理`); they must not be deleted.
 - `DELETE /v2/account/cloud` and `DELETE /v2/account` append to `DELETION_DB`
   before mutating `POS_DB`. A `202 DELETION_PENDING` still means the barrier is
   active and scheduled reconciliation must finish cleanup.
@@ -76,7 +81,10 @@ remain local `PENDING` and are not converted to permanent blocked data.
   allocations, and sale inventory movements in one operation.
 - A custom-amount-only Sale may have no item lines; its revenue is represented by `netAdjustment`.
 - Void: immutable reference to a sale plus inventory restoration movements; its event matches the Sale and may be `null`.
-- Device: server-owned `ACTIVE`/`RETIRED` lifecycle and receipt short code.
+- Device: server-owned `ACTIVE`/`RETIRED` lifecycle. Worker `devices.short_code`
+  is the device UUID. The receipt short code is client-owned
+  (`device_state.short_code`, pattern `^[A-Z0-9]{1,8}$`); new installs avoid
+  reserved `A`. They are not the same field.
 
 `state-records.schema.json` fixes the Device and local Outbox records. The
 Outbox stores the exact operation payload plus its SHA-256 hash, retry count,

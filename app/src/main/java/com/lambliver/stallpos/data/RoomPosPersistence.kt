@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -51,7 +52,11 @@ internal class RoomPosPersistence(
         v2Dao.observeOutboxCounts(),
         v2Dao.observeCloudValue(SyncCloudKeys.ACCESS_TOKEN),
         v2Dao.observeLastSyncedAtMillis(),
-    ) { counts, accessToken, lastSyncedAtMillis ->
+        v2Dao.observeBlockedSaleIds(),
+        v2Dao.observeCloudValue(SyncCloudKeys.ACTIVE_DEVICE_COUNT),
+    ) { counts, accessToken, lastSyncedAtMillis, blockedSaleIds, activeCountRaw ->
+        val activeDeviceCount = activeCountRaw?.toIntOrNull() ?: 0
+        val blockedIds = blockedSaleIds.toImmutableList()
         when {
             accessToken == null -> SyncUiState.LocalOnly
             counts.blockedCount > 0 -> SyncUiState(
@@ -61,14 +66,23 @@ internal class RoomPosPersistence(
                 lastSyncedAtMillis = lastSyncedAtMillis,
                 transientFailureStreak = counts.maxPendingAttempts,
                 blockedCode = counts.blockedErrorCode,
+                blockedSaleIds = blockedIds,
+                activeDeviceCount = activeDeviceCount,
             )
             counts.pendingCount > 0 -> SyncUiState(
                 SyncUiStatus.PENDING,
                 pendingCount = counts.pendingCount,
                 lastSyncedAtMillis = lastSyncedAtMillis,
                 transientFailureStreak = counts.maxPendingAttempts,
+                blockedSaleIds = blockedIds,
+                activeDeviceCount = activeDeviceCount,
             )
-            else -> SyncUiState(SyncUiStatus.SYNCED, lastSyncedAtMillis = lastSyncedAtMillis)
+            else -> SyncUiState(
+                SyncUiStatus.SYNCED,
+                lastSyncedAtMillis = lastSyncedAtMillis,
+                blockedSaleIds = blockedIds,
+                activeDeviceCount = activeDeviceCount,
+            )
         }
     }
 
@@ -621,23 +635,28 @@ internal class RoomPosPersistence(
         deviceId: String,
         cloudEpoch: Long,
         resetBaseline: Boolean,
+        additionalDevice: Boolean = false,
+        activeDeviceCount: Int = 0,
     ) {
         val snapshot = if (resetBaseline) readSnapshot() else null
         val now = System.currentTimeMillis()
         database.withTransaction {
             v2Dao.putCloudState(
-                listOf(
-                    CloudStateEntity(SyncCloudKeys.BASE_URL, baseUrl.trimEnd('/')),
-                    CloudStateEntity(SyncCloudKeys.ACCESS_TOKEN, accessToken),
-                    CloudStateEntity(SyncCloudKeys.REFRESH_TOKEN, refreshToken),
-                    CloudStateEntity(SyncCloudKeys.USER_ID, userId),
-                ),
+                buildList {
+                    add(CloudStateEntity(SyncCloudKeys.BASE_URL, baseUrl.trimEnd('/')))
+                    add(CloudStateEntity(SyncCloudKeys.ACCESS_TOKEN, accessToken))
+                    add(CloudStateEntity(SyncCloudKeys.REFRESH_TOKEN, refreshToken))
+                    add(CloudStateEntity(SyncCloudKeys.USER_ID, userId))
+                    if (activeDeviceCount > 0) {
+                        add(CloudStateEntity(SyncCloudKeys.ACTIVE_DEVICE_COUNT, activeDeviceCount.toString()))
+                    }
+                },
             )
             val previous = v2Dao.deviceState()
             v2Dao.putDeviceState(
                 DeviceStateEntity(
                     deviceId = deviceId,
-                    shortCode = previous?.shortCode ?: "A",
+                    shortCode = previous?.shortCode ?: receiptShortCode(deviceId),
                     name = android.os.Build.MODEL.take(100).ifBlank { "Android" },
                     status = "ACTIVE",
                     cloudEpoch = cloudEpoch,
@@ -647,6 +666,7 @@ internal class RoomPosPersistence(
                 ),
             )
             if (snapshot != null) enqueueBaseline(snapshot, now)
+            if (additionalDevice) dao.deleteLastCheckout()
         }
         SyncScheduler.enqueue(appContext)
     }
@@ -1016,9 +1036,10 @@ internal class RoomPosPersistence(
 
     private suspend fun deviceStateOrCreate(now: Long): DeviceStateEntity {
         v2Dao.deviceState()?.let { return it }
+        val deviceId = UUID.randomUUID().toString()
         return DeviceStateEntity(
-            deviceId = UUID.randomUUID().toString(),
-            shortCode = "A",
+            deviceId = deviceId,
+            shortCode = receiptShortCode(deviceId),
             name = android.os.Build.MODEL.take(100).ifBlank { "Android" },
             status = "ACTIVE",
             cloudEpoch = 0,

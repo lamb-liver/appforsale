@@ -1,8 +1,11 @@
 package com.lambliver.stallpos.ui.pos
 
 import android.net.Uri
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -54,7 +57,7 @@ internal fun PosAppOverlays(
     onConfirmRestore: (Uri) -> Unit,
     feedback: PosFeedbackManager,
     cloudLoginConfigured: Boolean,
-    onGoogleSignIn: () -> Unit,
+    onGoogleSignIn: (forceDevice: Boolean) -> Unit,
     onCopyDiagnostics: () -> Unit,
     onShareDiagnostics: () -> Unit,
     onExportBackup: () -> Unit,
@@ -123,6 +126,7 @@ internal fun PosAppOverlays(
             allLogs = uiState.salesLog,
             reversals = uiState.reversalLog,
             products = uiState.products,
+            blockedSaleIds = uiState.sync.blockedSaleIds.toSet(),
             currency = currency,
             onDismiss = onHideDashboardSheet,
         )
@@ -286,6 +290,15 @@ internal fun PosAppOverlays(
             bundle = dialog.bundle,
             onDismiss = { vm.onEvent(PosEvent.DismissDialog) },
             onConfirm = { vm.onEvent(PosEvent.DeleteBundle(dialog.bundle.id)) },
+        )
+
+        DialogState.MultiDeviceStockWarning -> AlertDialog(
+            onDismissRequest = { vm.onEvent(PosEvent.DismissDialog) },
+            title = { Text("請關閉庫存追蹤") },
+            text = { Text(MULTI_DEVICE_STOCK_WARNING) },
+            confirmButton = {
+                TextButton(onClick = { vm.onEvent(PosEvent.DismissDialog) }) { Text("知道了") }
+            },
         )
     }
 

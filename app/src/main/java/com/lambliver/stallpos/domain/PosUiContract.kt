@@ -57,6 +57,7 @@ sealed class DialogState {
     data object AddBundle : DialogState()
     data class EditBundle(val bundle: Bundle) : DialogState()
     data class DeleteBundle(val bundle: Bundle) : DialogState()
+    data object MultiDeviceStockWarning : DialogState()
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -202,9 +203,13 @@ data class SyncUiState(
     val lastSyncedAtMillis: Long? = null,
     val transientFailureStreak: Int = 0,
     val blockedCode: String? = null,
+    val blockedSaleIds: ImmutableList<String> = persistentListOf(),
+    val activeDeviceCount: Int = 0,
 ) {
     val emphasizesPending: Boolean
         get() = status == SyncUiStatus.PENDING && transientFailureStreak >= 3
+    val checkoutLocked: Boolean
+        get() = blockedCode == "DEVICE_RETIRED"
 
     companion object {
         val LocalOnly = SyncUiState(SyncUiStatus.LOCAL_ONLY)

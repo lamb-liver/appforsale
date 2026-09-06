@@ -68,4 +68,26 @@ class LocalOperationsComposeTest {
         composeRule.onNodeWithText("網路錯誤").assertIsDisplayed()
         composeRule.onNodeWithText("有商品沒填成本", substring = true).assertIsDisplayed()
     }
+
+    @Test
+    fun retiredDevice_showsTakeoverAndHidesJoin() {
+        val state = PosUiState(
+            isLoading = false,
+            sync = SyncUiState(SyncUiStatus.BLOCKED, blockedCount = 1, blockedCode = "DEVICE_RETIRED"),
+        )
+        composeRule.setContent {
+            StallPosTheme {
+                Box(Modifier.width(390.dp).height(844.dp)) {
+                    LocalOperationsBottomSheet(
+                        uiState = state,
+                        onDismiss = {},
+                        onEvent = {},
+                        cloudLoginConfigured = true,
+                    )
+                }
+            }
+        }
+        composeRule.onNodeWithText("把帳換到這支並退役其他所有手機").assertIsDisplayed()
+        composeRule.onNodeWithText("用 Google 登入，加入此帳號").assertDoesNotExist()
+    }
 }

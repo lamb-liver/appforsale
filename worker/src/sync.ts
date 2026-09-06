@@ -63,7 +63,14 @@ export async function handleSync(request: Request, env: Env, auth: AuthContext):
   }
   await env.POS_DB.prepare("UPDATE devices SET last_seen_at_utc=? WHERE id=? AND user_id=?")
     .bind(new Date().toISOString(), auth.deviceId, auth.userId).run();
-  return json({ requestId: batch.requestId, results }, 200, batch.requestId);
+  const active = await env.POS_DB.prepare(
+    "SELECT COUNT(*) AS count FROM devices WHERE user_id=? AND status='ACTIVE'",
+  ).bind(auth.userId).first<{ count: number }>();
+  return json({
+    requestId: batch.requestId,
+    results,
+    activeDeviceCount: Number(active?.count ?? 0),
+  }, 200, batch.requestId);
 }
 
 export async function handleBootstrap(

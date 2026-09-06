@@ -33,7 +33,7 @@ internal fun LocalOperationsBottomSheet(
     onDismiss: () -> Unit,
     onEvent: (PosEvent) -> Unit,
     cloudLoginConfigured: Boolean = false,
-    onGoogleSignIn: () -> Unit = {},
+    onGoogleSignIn: (forceDevice: Boolean) -> Unit = {},
     onCopyDiagnostics: () -> Unit = {},
     onShareDiagnostics: () -> Unit = {},
 ) {
@@ -48,6 +48,16 @@ internal fun LocalOperationsBottomSheet(
     var inventoryAction by rememberSaveable { mutableStateOf(InventoryUiAction.GENERAL_ADD) }
     val quantities = remember { mutableStateMapOf<String, String>() }
     val trackedProducts = uiState.products.filter { it.stock != null }
+    var confirmTakeover by remember { mutableStateOf(false) }
+    val retired = uiState.sync.blockedCode == "DEVICE_RETIRED"
+    val showJoin = uiState.sync.status == SyncUiStatus.LOCAL_ONLY
+    val showTakeover = cloudLoginConfigured && (
+        uiState.sync.status == SyncUiStatus.LOCAL_ONLY ||
+            retired ||
+            uiState.sync.status == SyncUiStatus.SYNCED ||
+            uiState.sync.status == SyncUiStatus.PENDING ||
+            uiState.sync.status == SyncUiStatus.BLOCKED
+        )
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(
@@ -67,15 +77,26 @@ internal fun LocalOperationsBottomSheet(
                 uiState.sync.blockedReasonText()?.let {
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
-                if (uiState.sync.status == SyncUiStatus.LOCAL_ONLY) {
+                if (uiState.sync.status != SyncUiStatus.LOCAL_ONLY) {
+                    Text(CLOUD_MULTI_DEVICE_NOTE, style = MaterialTheme.typography.bodySmall)
+                }
+                if (showJoin) {
                     OutlinedButton(
-                        onClick = onGoogleSignIn,
+                        onClick = { onGoogleSignIn(false) },
                         enabled = cloudLoginConfigured,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     ) {
-                        Text(if (cloudLoginConfigured) "用 Google 登入，方便換機" else "這版還沒開雲端")
+                        Text(if (cloudLoginConfigured) JOIN_BUTTON else "這版還沒開雲端")
                     }
                 }
+                if (showTakeover) {
+                    OutlinedButton(
+                        onClick = { confirmTakeover = true },
+                        enabled = cloudLoginConfigured,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { Text(TAKEOVER_BUTTON) }
+                }
+                Text(JOIN_TAKEOVER_HINT, style = MaterialTheme.typography.bodySmall)
                 Text("回報給開發者時會附上，不含帳號或交易", style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onCopyDiagnostics, modifier = Modifier.weight(1f)) { Text("複製回報資訊") }
@@ -192,6 +213,22 @@ internal fun LocalOperationsBottomSheet(
                 }
             }
         }
+    }
+    if (confirmTakeover) {
+        AlertDialog(
+            onDismissRequest = { confirmTakeover = false },
+            title = { Text("接手這支手機？") },
+            text = { Text("這會退役其他所有手機，這支上的目錄會蓋掉雲端。確定？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmTakeover = false
+                    onGoogleSignIn(true)
+                }) { Text("確定接手") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmTakeover = false }) { Text("取消") }
+            },
+        )
     }
 }
 

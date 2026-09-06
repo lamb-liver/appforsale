@@ -183,6 +183,9 @@ internal interface V2RoomDao {
     @Query("DELETE FROM sync_outbox")
     suspend fun deleteAllOutbox()
 
+    @Query("SELECT entity_id FROM sync_outbox WHERE status = 'BLOCKED' AND entity_type = 'SALE' ORDER BY entity_id")
+    fun observeBlockedSaleIds(): Flow<List<String>>
+
     @Query(
         "SELECT " +
             "COALESCE(SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending_count, " +

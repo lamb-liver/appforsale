@@ -2,6 +2,21 @@
 
 格式以 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/) 為參考，版本號採 [Semantic Versioning](https://semver.org/lang/zh-TW/)。
 
+## [Unreleased]
+
+### Added
+
+- 同一帳號最多 4 台 ACTIVE 手機並行結帳；第 5 台 `DEVICE_LIMIT`
+- 接手（`forceDevice`）退役其他所有手機；已退役不可自行加入
+- 新機收據短碼用 deviceId 後 5 hex，避開保留字 `A`
+- 上傳失敗的銷貨在本機標「待處理」；退役後鎖結帳
+- 第二台加入若開著庫存追蹤，彈一次明確警告
+
+### Changed
+
+- Google 登入預設為「加入此帳號」，不再擋第二台
+- 多機文案統一用「手機／支」：滿 4 支時在這支按接手；退役後無法再收款
+
 ## [2.1.3] - 2026-08-26
 
 ### Added

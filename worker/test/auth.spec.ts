@@ -95,18 +95,63 @@ describe("Google ID token verification", () => {
     expect((await request("/v2/auth/refresh", { refreshToken: first.refreshToken, deviceId })).status).toBe(401);
   });
 
-  it("requires transfer or explicit force before retiring the active device", async () => {
+  it("lets a second device join without forceDevice and keeps both ACTIVE", async () => {
     const key = await rsaKey("device-key");
     mockJwks(key.publicJwk);
     const idToken = await jwt(key.privateKey, "device-key", validClaims("google-device"));
     const first = await auth(idToken);
-    const firstAccess = (await first.json() as { accessToken: string }).accessToken;
+    const firstBody = await first.json() as { accessToken: string; additionalDevice: boolean; activeDeviceCount: number };
+    expect(firstBody.additionalDevice).toBe(false);
+    expect(firstBody.activeDeviceCount).toBe(1);
     const replacement = "20000000-0000-4000-8000-000000000100";
-    expect((await auth(idToken, replacement)).status).toBe(409);
+    const joined = await auth(idToken, replacement);
+    expect(joined.status).toBe(200);
+    expect(await joined.json()).toMatchObject({ additionalDevice: true, activeDeviceCount: 2, deviceId: replacement });
+    const active = await env.POS_DB.prepare(
+      "SELECT COUNT(*) AS count FROM devices WHERE status='ACTIVE'",
+    ).first<number>("count");
+    expect(active).toBe(2);
+    const relogin = await auth(idToken, deviceId);
+    expect(relogin.status).toBe(200);
+    expect(await relogin.json()).toMatchObject({ additionalDevice: false, activeDeviceCount: 2 });
+  });
+
+  it("rejects a fifth join with DEVICE_LIMIT and takeover retires every other device", async () => {
+    const key = await rsaKey("limit-key");
+    mockJwks(key.publicJwk);
+    const idToken = await jwt(key.privateKey, "limit-key", validClaims("google-limit"));
+    expect((await auth(idToken)).status).toBe(200);
+    for (let i = 1; i <= 3; i += 1) {
+      const extra = `20000000-0000-4000-8000-00000000010${i}`;
+      expect((await auth(idToken, extra)).status).toBe(200);
+    }
+    const fifth = "20000000-0000-4000-8000-000000000104";
+    const limited = await auth(idToken, fifth);
+    expect(limited.status).toBe(409);
+    expect(await limited.json()).toMatchObject({ code: "DEVICE_LIMIT" });
+    expect((await auth(idToken, fifth, { forceDevice: true })).status).toBe(200);
+    expect(await env.POS_DB.prepare(
+      "SELECT COUNT(*) AS count FROM devices WHERE status='ACTIVE'",
+    ).first("count")).toBe(1);
+    expect(await env.POS_DB.prepare(
+      "SELECT id FROM devices WHERE status='ACTIVE'",
+    ).first("id")).toBe(fifth);
+  });
+
+  it("does not let a RETIRED device join again without forceDevice", async () => {
+    const key = await rsaKey("retired-key");
+    mockJwks(key.publicJwk);
+    const idToken = await jwt(key.privateKey, "retired-key", validClaims("google-retired"));
+    const first = await auth(idToken);
+    const firstAccess = (await first.json() as { accessToken: string }).accessToken;
+    const replacement = "20000000-0000-4000-8000-000000000105";
     expect((await auth(idToken, replacement, { forceDevice: true })).status).toBe(200);
+    expect((await auth(idToken, deviceId)).status).toBe(409);
+    expect(await (await auth(idToken, deviceId)).json()).toMatchObject({ code: "DEVICE_RETIRED" });
     const old = await request("/v2/bootstrap?group=PRODUCTS", undefined, firstAccess, "GET");
     expect(old.status).toBe(409);
     expect(await old.json()).toMatchObject({ code: "DEVICE_RETIRED" });
+    expect((await auth(idToken, deviceId, { forceDevice: true })).status).toBe(200);
   });
 
   it("requires explicit creation after account deletion and creates a newer generation", async () => {

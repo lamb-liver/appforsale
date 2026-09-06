@@ -68,6 +68,9 @@ export async function handleCommitTransfer(request: Request, env: Env, requestId
     id: string; user_id: string; source_device_id: string; target_device_id: string; target_device_name: string; cloud_epoch: number;
   }>();
   if (!transfer?.target_device_id || !transfer.target_device_name) throw new HttpError(409, "TRANSFER_INVALID", "Transfer is not ready.");
+  const source = await env.POS_DB.prepare("SELECT status FROM devices WHERE id=?")
+    .bind(transfer.source_device_id).first<{ status: string }>();
+  if (source?.status !== "ACTIVE") throw new HttpError(409, "TRANSFER_INVALID", "Transfer source is no longer active.");
   const credentials = await credentialsFor(env.POS_DB, transfer.user_id, transfer.target_device_id, nowUtc);
   await checkedBatch(env.POS_DB, [
     env.POS_DB.prepare("UPDATE device_transfers SET status='COMMITTED',committed_at_utc=? WHERE id=? AND status='CLAIMED'")

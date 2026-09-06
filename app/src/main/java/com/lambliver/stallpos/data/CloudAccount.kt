@@ -14,7 +14,22 @@ internal enum class CloudLoginIntent { SIGN_IN, REENABLE, CREATE_AFTER_DELETE }
 
 internal class CloudLifecycleException(val code: String, message: String) : IOException(message)
 
-internal data class CloudLoginResult(val userId: String, val cloudEpoch: Long)
+internal data class CloudLoginResult(
+    val userId: String,
+    val cloudEpoch: Long,
+    val additionalDevice: Boolean = false,
+    val activeDeviceCount: Int = 0,
+)
+
+internal fun resetBaselineForSignIn(
+    forceDevice: Boolean,
+    intent: CloudLoginIntent,
+    additionalDevice: Boolean,
+    previousUser: String?,
+    sessionUserId: String,
+): Boolean = forceDevice ||
+    intent != CloudLoginIntent.SIGN_IN ||
+    (!additionalDevice && previousUser != sessionUserId)
 
 internal class CloudAccountManager(
     context: Context,
@@ -41,9 +56,11 @@ internal class CloudAccountManager(
         val session = response.session()
         store.activateCloudSession(
             baseUrl, session.accessToken, session.refreshToken, session.userId, session.deviceId, session.cloudEpoch,
-            resetBaseline = previousUser != session.userId || intent != CloudLoginIntent.SIGN_IN || forceDevice,
+            resetBaseline = resetBaselineForSignIn(forceDevice, intent, session.additionalDevice, previousUser, session.userId),
+            additionalDevice = session.additionalDevice,
+            activeDeviceCount = session.activeDeviceCount,
         )
-        return CloudLoginResult(session.userId, session.cloudEpoch)
+        return CloudLoginResult(session.userId, session.cloudEpoch, session.additionalDevice, session.activeDeviceCount)
     }
 
     suspend fun claimTransfer(transferToken: String): CloudLoginResult {
@@ -102,6 +119,11 @@ internal suspend fun refreshSyncSession(database: StallPosV2Database): String? {
     val session = response.session()
     configureSyncSession(database, baseUrl, session.accessToken, session.deviceId, session.cloudEpoch,
         refreshToken = session.refreshToken, userId = session.userId)
+    if (session.activeDeviceCount > 0) {
+        database.v2Dao().putCloudState(
+            listOf(CloudStateEntity(SyncCloudKeys.ACTIVE_DEVICE_COUNT, session.activeDeviceCount.toString())),
+        )
+    }
     return session.accessToken
 }
 
@@ -111,10 +133,18 @@ private data class CloudSession(
     val userId: String,
     val deviceId: String,
     val cloudEpoch: Long,
+    val additionalDevice: Boolean,
+    val activeDeviceCount: Int,
 )
 
 private fun JSONObject.session() = CloudSession(
-    getString("accessToken"), getString("refreshToken"), getString("userId"), getString("deviceId"), getLong("cloudEpoch"),
+    getString("accessToken"),
+    getString("refreshToken"),
+    getString("userId"),
+    getString("deviceId"),
+    getLong("cloudEpoch"),
+    optBoolean("additionalDevice", false),
+    optInt("activeDeviceCount", 0),
 )
 
 private data class CloudResponse(val status: Int, val json: JSONObject)
@@ -123,7 +153,9 @@ private fun CloudResponse.requireSuccess(allowAccepted: Boolean = false): JSONOb
     if (status in 200..299 && (allowAccepted || status != 202)) return json
     val code = json.optString("code", "HTTP_$status")
     val message = json.optString("message", "雲端請求失敗 ($status)")
-    if (code in setOf("DEVICE_RETIRED", "CLOUD_EPOCH_REVOKED", "ACCOUNT_DELETED")) throw CloudLifecycleException(code, message)
+    if (code in setOf("DEVICE_RETIRED", "CLOUD_EPOCH_REVOKED", "ACCOUNT_DELETED", "DEVICE_LIMIT")) {
+        throw CloudLifecycleException(code, message)
+    }
     throw IOException("$code: $message")
 }
 
