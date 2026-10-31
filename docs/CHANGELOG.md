@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [2.1.4] - 2026-10-31
+
+> 多支手機一起收款前，請先把每一支都更新到 2.1.4。
+
 ### Added
 
 - 同一帳號最多 4 支 ACTIVE 手機並行結帳；第 5 支 `DEVICE_LIMIT`
@@ -193,6 +197,7 @@
 - AdMob 橫幅、UMP 同意流程
 - Google Play 贊助 INAPP（去廣告）
 
+[2.1.4]: https://github.com/lamb-liver/appforsale/compare/v2.1.3...v2.1.4
 [2.1.3]: https://github.com/lamb-liver/appforsale/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/lamb-liver/appforsale/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/lamb-liver/appforsale/compare/v2.1.0...v2.1.1

@@ -1,6 +1,6 @@
 # Stall POS · Market Checkout
 
-**Version: v2.1.3** (`VERSION` · `versionName`)
+**Version: v2.1.4** (`VERSION` · `versionName`)
 
 Install: https://lambliver.dev/projects/offline-pos-android
 
@@ -129,7 +129,7 @@ v2.1.1 release gate (2026-08-26): Android unit, lint, API 35 instrumented, produ
 | StallPOS JSON | Only supported cross-install business-data transfer format |
 | Android Auto Backup / D2D | Unsupported and excluded by the manifest and backup rules |
 
-**Production**: [download StallPOS v2.1.3 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.3/StallPOS-2.1.3.apk) · [open the read-only Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
+**Production**: [download StallPOS v2.1.4 APK](https://github.com/lamb-liver/appforsale/releases/download/v2.1.4/StallPOS-2.1.4.apk) · [open the read-only Web Dashboard](https://stallpos-v2.shiro02160420.workers.dev/dashboard/)
 
 ---
 
